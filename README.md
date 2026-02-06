@@ -150,11 +150,30 @@ You should see:
 ```
 ✨ Genesis Starting...
 🔗 [Observer] Connected to ethereum (chain ID: 1)
-🔍 [Decoder] Registered 12 event handlers
+🔍 [Decoder] Registered 16 event handlers
 📋 [RuleLoader] Loaded 8 active rules
 📬 [Telegram] Channel initialized (chat: 6680898155)
+📊 [Metrics] Dashboard available at http://localhost:3000
 ⛓️  [Tracker] Starting from block 20123456
 ```
+
+### Access the Metrics Dashboard
+
+Open your browser and navigate to:
+```
+http://localhost:3000
+```
+
+You'll see a **real-time dashboard** showing:
+- 💰 RPC cost savings (70-90%)
+- 💵 Dollar savings calculator
+- 🔇 Alert noise reduction
+- ⛓️ Blocks processed
+- ✅ Event matching rates
+- 🚨 Alerts by severity
+- 📊 Aggregation statistics
+
+The dashboard updates **every 2 seconds** with live data!
 
 ---
 
