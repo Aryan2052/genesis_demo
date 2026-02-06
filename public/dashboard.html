@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Genesis Metrics Dashboard</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #333;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      color: white;
+      margin-bottom: 30px;
+    }
+
+    header h1 {
+      font-size: 3em;
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    header p {
+      font-size: 1.2em;
+      opacity: 0.9;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .stat-card {
+      background: white;
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+    }
+
+    .stat-card h3 {
+      font-size: 0.9em;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 15px;
+    }
+
+    .stat-value {
+      font-size: 2.5em;
+      font-weight: bold;
+      color: #667eea;
+      margin-bottom: 10px;
+    }
+
+    .stat-label {
+      font-size: 0.9em;
+      color: #999;
+    }
+
+    .stat-detail {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #eee;
+      font-size: 0.85em;
+      color: #666;
+    }
+
+    .stat-detail div {
+      display: flex;
+      justify-content: space-between;
+      margin: 5px 0;
+    }
+
+    .highlight {
+      color: #667eea;
+      font-weight: bold;
+    }
+
+    .success {
+      color: #10b981;
+      font-weight: bold;
+    }
+
+    .warning {
+      color: #f59e0b;
+      font-weight: bold;
+    }
+
+    .danger {
+      color: #ef4444;
+      font-weight: bold;
+    }
+
+    .big-stat {
+      grid-column: span 2;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .big-stat h3 {
+      color: rgba(255,255,255,0.9);
+    }
+
+    .big-stat .stat-value {
+      color: white;
+      font-size: 3.5em;
+    }
+
+    .big-stat .stat-label {
+      color: rgba(255,255,255,0.8);
+    }
+
+    .big-stat .stat-detail {
+      border-top-color: rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.9);
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+      transition: width 0.5s ease;
+    }
+
+    .chart-container {
+      background: white;
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      margin-bottom: 30px;
+    }
+
+    .live-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      background: #10b981;
+      border-radius: 50%;
+      margin-right: 8px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    footer {
+      text-align: center;
+      color: white;
+      margin-top: 40px;
+      opacity: 0.8;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.75em;
+      font-weight: bold;
+      margin-left: 8px;
+    }
+
+    .badge-success {
+      background: #10b981;
+      color: white;
+    }
+
+    .badge-warning {
+      background: #f59e0b;
+      color: white;
+    }
+
+    .badge-info {
+      background: #3b82f6;
+      color: white;
+    }
+
+    @media (max-width: 768px) {
+      .big-stat {
+        grid-column: span 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🌟 Genesis Metrics</h1>
+      <p><span class="live-indicator"></span>Real-Time Blockchain Monitoring Dashboard</p>
+    </header>
+
+    <div class="stats-grid">
+      <!-- RPC Savings (Big Stat) -->
+      <div class="stat-card big-stat">
+        <h3>💰 RPC Cost Savings</h3>
+        <div class="stat-value" id="rpc-savings">0%</div>
+        <div class="stat-label">Calls saved through selective indexing</div>
+        <div class="stat-detail">
+          <div>
+            <span>Calls Made:</span>
+            <span id="rpc-made">0</span>
+          </div>
+          <div>
+            <span>Calls Saved:</span>
+            <span id="rpc-saved">0</span>
+          </div>
+          <div>
+            <span>Total Potential:</span>
+            <span id="rpc-total">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cost Calculator -->
+      <div class="stat-card">
+        <h3>💵 Cost Analysis</h3>
+        <div class="stat-value" id="cost-saved">$0.00</div>
+        <div class="stat-label">Saved this session</div>
+        <div class="stat-detail">
+          <div>
+            <span>Actual Cost:</span>
+            <span class="warning" id="cost-actual">$0.00</span>
+          </div>
+          <div>
+            <span>Without Optimization:</span>
+            <span class="danger" id="cost-without">$0.00</span>
+          </div>
+          <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
+            <span>Projected Monthly Savings:</span>
+            <span class="success" id="cost-monthly-saved">$0.00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alert Noise Reduction -->
+      <div class="stat-card">
+        <h3>🔇 Alert Noise Reduction</h3>
+        <div class="stat-value" id="noise-reduction">0%</div>
+        <div class="stat-label">Events filtered before alerting</div>
+        <div class="stat-detail">
+          <div>
+            <span>Events Decoded:</span>
+            <span id="events-total">0</span>
+          </div>
+          <div>
+            <span>Alerts Sent:</span>
+            <span class="highlight" id="alerts-sent">0</span>
+          </div>
+          <div>
+            <span>Filtered Out:</span>
+            <span id="events-filtered">0</span>
+          </div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="noise-progress" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Blocks Processed -->
+      <div class="stat-card">
+        <h3>⛓️ Blocks Processed</h3>
+        <div class="stat-value" id="blocks-processed">0</div>
+        <div class="stat-label">Ethereum mainnet</div>
+        <div class="stat-detail">
+          <div>
+            <span>Block Range:</span>
+            <span id="block-range">N/A</span>
+          </div>
+          <div>
+            <span>Reorgs Detected:</span>
+            <span class="warning" id="reorgs">0</span>
+          </div>
+          <div>
+            <span>Uptime:</span>
+            <span class="success" id="uptime">0s</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Events Matched -->
+      <div class="stat-card">
+        <h3>✅ Event Matching</h3>
+        <div class="stat-value" id="match-rate">0%</div>
+        <div class="stat-label">Events matching active rules</div>
+        <div class="stat-detail">
+          <div>
+            <span>Total Decoded:</span>
+            <span id="events-decoded">0</span>
+          </div>
+          <div>
+            <span>Matched Rules:</span>
+            <span class="success" id="events-matched">0</span>
+          </div>
+          <div>
+            <span>Active Rules:</span>
+            <span class="highlight">8</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alerts by Severity -->
+      <div class="stat-card">
+        <h3>🚨 Alerts by Severity</h3>
+        <div class="stat-value" id="total-alerts">0</div>
+        <div class="stat-label">Total alerts delivered</div>
+        <div class="stat-detail">
+          <div>
+            <span>Critical:</span>
+            <span class="danger" id="alerts-critical">0</span>
+          </div>
+          <div>
+            <span>High:</span>
+            <span class="warning" id="alerts-high">0</span>
+          </div>
+          <div>
+            <span>Medium:</span>
+            <span class="highlight" id="alerts-medium">0</span>
+          </div>
+          <div>
+            <span>Low:</span>
+            <span id="alerts-low">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notification Channels -->
+      <div class="stat-card">
+        <h3>📢 Notification Channels</h3>
+        <div class="stat-value" id="reliability">100%</div>
+        <div class="stat-label">Delivery reliability</div>
+        <div class="stat-detail">
+          <div>
+            <span>Telegram:</span>
+            <span class="success" id="channel-telegram">0</span>
+          </div>
+          <div>
+            <span>Webhook:</span>
+            <span class="highlight" id="channel-webhook">0</span>
+          </div>
+          <div>
+            <span>Console:</span>
+            <span id="channel-console">0</span>
+          </div>
+          <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
+            <span>Failed/Retried:</span>
+            <span class="warning" id="alerts-failed">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Aggregation Stats -->
+      <div class="stat-card">
+        <h3>📊 Aggregation Windows</h3>
+        <div class="stat-value" id="aggregation-windows">0</div>
+        <div class="stat-label">Time windows created</div>
+        <div class="stat-detail">
+          <div>
+            <span>Events Aggregated:</span>
+            <span id="aggregation-events">0</span>
+          </div>
+          <div>
+            <span>Avg Events/Window:</span>
+            <span class="highlight" id="aggregation-ratio">0</span>
+          </div>
+          <div>
+            <span>Deduplication:</span>
+            <span class="success" id="aggregation-dedup">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-container">
+      <h3>📈 System Performance</h3>
+      <div class="stat-detail" style="margin-top: 20px;">
+        <div>
+          <span>Average RPC Latency:</span>
+          <span class="highlight" id="avg-latency">0ms</span>
+        </div>
+        <div>
+          <span>RPC Success Rate:</span>
+          <span class="success" id="rpc-success">100%</span>
+        </div>
+        <div>
+          <span>Projected Monthly Cost (Current):</span>
+          <span class="warning" id="cost-monthly-current">$0.00</span>
+        </div>
+        <div>
+          <span>Projected Monthly Cost (Without Optimization):</span>
+          <span class="danger" id="cost-monthly-naive">$0.00</span>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <p>Genesis — Signal-First Blockchain Monitoring • Built for Hackathon B01</p>
+      <p style="margin-top: 10px; font-size: 0.9em;">
+        Updates every 2 seconds • <a href="/api/metrics" style="color: white;">View JSON</a>
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    // Connect to metrics stream
+    const eventSource = new EventSource('/api/metrics/stream');
+
+    eventSource.onmessage = function(event) {
+      const data = JSON.parse(event.data);
+      updateDashboard(data);
+    };
+
+    eventSource.onerror = function() {
+      console.error('Lost connection to metrics stream. Retrying...');
+    };
+
+    function updateDashboard(data) {
+      const { computed } = data;
+
+      // RPC Savings
+      document.getElementById('rpc-savings').textContent = computed.rpc.savings_percent + '%';
+      document.getElementById('rpc-made').textContent = computed.rpc.calls_made.toLocaleString();
+      document.getElementById('rpc-saved').textContent = computed.rpc.calls_saved.toLocaleString();
+      document.getElementById('rpc-total').textContent = computed.rpc.total_calls.toLocaleString();
+
+      // Cost Analysis
+      document.getElementById('cost-saved').textContent = '$' + computed.cost.saved_usd;
+      document.getElementById('cost-actual').textContent = '$' + computed.cost.actual_usd;
+      document.getElementById('cost-without').textContent = '$' + computed.cost.without_optimization_usd;
+      document.getElementById('cost-monthly-saved').textContent = '$' + computed.cost.projected_monthly_saved_usd;
+      document.getElementById('cost-monthly-current').textContent = '$' + computed.cost.projected_monthly_usd;
+      
+      // Calculate naive monthly cost
+      const naiveMonthlyCost = (parseFloat(computed.cost.actual_usd) + parseFloat(computed.cost.saved_usd)) * 30 * 24 * 60 * 60 / Math.max(computed.uptime_sec, 1);
+      document.getElementById('cost-monthly-naive').textContent = '$' + naiveMonthlyCost.toFixed(2);
+
+      // Alert Noise Reduction
+      document.getElementById('noise-reduction').textContent = computed.alerts.noise_reduction_percent + '%';
+      document.getElementById('events-total').textContent = computed.events.total_decoded.toLocaleString();
+      document.getElementById('alerts-sent').textContent = computed.alerts.total_sent.toLocaleString();
+      document.getElementById('events-filtered').textContent = computed.events.filtered_out.toLocaleString();
+      document.getElementById('noise-progress').style.width = computed.alerts.noise_reduction_percent + '%';
+
+      // Blocks
+      document.getElementById('blocks-processed').textContent = computed.blocks.processed.toLocaleString();
+      document.getElementById('block-range').textContent = computed.blocks.range;
+      document.getElementById('reorgs').textContent = computed.blocks.reorgs_detected;
+      document.getElementById('uptime').textContent = computed.uptime_formatted;
+
+      // Event Matching
+      document.getElementById('match-rate').textContent = computed.events.match_rate_percent + '%';
+      document.getElementById('events-decoded').textContent = computed.events.total_decoded.toLocaleString();
+      document.getElementById('events-matched').textContent = computed.events.matched_rules.toLocaleString();
+
+      // Alerts by Severity
+      document.getElementById('total-alerts').textContent = computed.alerts.total_sent.toLocaleString();
+      document.getElementById('alerts-critical').textContent = computed.alerts.by_severity.critical || 0;
+      document.getElementById('alerts-high').textContent = computed.alerts.by_severity.high || 0;
+      document.getElementById('alerts-medium').textContent = computed.alerts.by_severity.medium || 0;
+      document.getElementById('alerts-low').textContent = computed.alerts.by_severity.low || 0;
+
+      // Channels
+      document.getElementById('reliability').textContent = computed.alerts.reliability_percent + '%';
+      document.getElementById('channel-telegram').textContent = computed.alerts.by_channel.telegram || 0;
+      document.getElementById('channel-webhook').textContent = computed.alerts.by_channel.webhook || 0;
+      document.getElementById('channel-console').textContent = computed.alerts.by_channel.console || 0;
+      document.getElementById('alerts-failed').textContent = data.raw.alerts.failed + '/' + data.raw.alerts.retried;
+
+      // Aggregation
+      document.getElementById('aggregation-windows').textContent = computed.aggregation.windows_created.toLocaleString();
+      document.getElementById('aggregation-events').textContent = computed.aggregation.events_aggregated.toLocaleString();
+      document.getElementById('aggregation-ratio').textContent = computed.aggregation.reduction_ratio;
+      document.getElementById('aggregation-dedup').textContent = data.raw.aggregation.alerts_deduplicated;
+
+      // Performance
+      document.getElementById('avg-latency').textContent = computed.rpc.avg_latency_ms + 'ms';
+      document.getElementById('rpc-success').textContent = computed.rpc.success_rate + '%';
+    }
+
+    // Initial load from JSON endpoint
+    fetch('/api/metrics')
+      .then(res => res.json())
+      .then(data => updateDashboard(data))
+      .catch(err => console.error('Failed to load initial metrics:', err));
+  </script>
+</body>
+</html>
