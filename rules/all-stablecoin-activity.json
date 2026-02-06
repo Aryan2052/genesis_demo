@@ -1,0 +1,22 @@
+{
+  "rule_id": "all_stablecoin_activity",
+  "name": "All Stablecoin Activity",
+  "description": "Track all USDT and USDC transfers (low severity, no threshold) — useful for monitoring dashboards",
+  "enabled": true,
+  "chain": "ethereum",
+  "event_type": "ERC20_TRANSFER",
+  "contracts": [
+    "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+  ],
+  "conditions": {},
+  "aggregation": {
+    "enabled": true,
+    "window_sec": 60,
+    "group_by": ["contract"],
+    "summary": "count"
+  },
+  "finality": "pending",
+  "cooldown_sec": 60,
+  "severity": "low"
+}

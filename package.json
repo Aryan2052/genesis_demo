@@ -1,15 +1,24 @@
 {
-  "name": "genesis_demo",
-  "version": "1.0.0",
-  "main": "index.js",
+  "name": "genesis",
+  "version": "0.1.0",
+  "description": "Production-grade, signal-first blockchain monitoring system",
+  "main": "src/app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js",
+    "test": "echo \"Tests coming in Phase 2\" && exit 0"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "blockchain",
+    "ethereum",
+    "monitoring",
+    "web3",
+    "erc20"
+  ],
+  "author": "Aryan2052",
   "license": "ISC",
-  "description": "",
   "dependencies": {
+    "dotenv": "^16.6.1",
     "ethers": "^6.16.0"
   }
 }

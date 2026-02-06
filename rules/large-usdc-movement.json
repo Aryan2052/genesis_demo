@@ -1,0 +1,21 @@
+{
+  "rule_id": "large_usdc_movement",
+  "name": "Large USDC Movement",
+  "description": "Alert when USDC transfers exceed $50,000 — aggregates over 5 minute windows",
+  "enabled": true,
+  "chain": "ethereum",
+  "event_type": "ERC20_TRANSFER",
+  "contracts": ["0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"],
+  "conditions": {
+    "amount_raw": { "gte": "50000000000" }
+  },
+  "aggregation": {
+    "enabled": true,
+    "window_sec": 300,
+    "group_by": ["from"],
+    "summary": "total_amount"
+  },
+  "finality": "pending",
+  "cooldown_sec": 300,
+  "severity": "medium"
+}

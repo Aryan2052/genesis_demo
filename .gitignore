@@ -1,4 +1,3 @@
-@"
 # Node
 node_modules/
 npm-debug.log*
@@ -28,4 +27,3 @@ logs/
 
 # Misc
 *.tgz
-"@ | Out-File -Encoding utf8 .gitignore
