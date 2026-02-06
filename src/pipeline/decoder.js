@@ -35,15 +35,27 @@ class Decoder {
   _registerAbis(abis) {
     // ERC-20
     if (abis.erc20) {
-      this._register(abis.erc20, "ERC20_TRANSFER");
+      this._register(abis.erc20, "ERC20");
     }
     // ERC-721
     if (abis.erc721) {
-      this._register(abis.erc721, "ERC721_TRANSFER");
+      this._register(abis.erc721, "ERC721");
     }
     // Uniswap V2
     if (abis.uniswapV2) {
       this._register(abis.uniswapV2, "UNISWAP_V2");
+    }
+    // Uniswap V3
+    if (abis.uniswapV3) {
+      this._register(abis.uniswapV3, "UNISWAP");
+    }
+    // Aave V3
+    if (abis.aaveV3) {
+      this._register(abis.aaveV3, "AAVE");
+    }
+    // Pausable
+    if (abis.pausable) {
+      this._register(abis.pausable, "PAUSABLE");
     }
 
     const totalEntries = Array.from(this.interfaces.values()).reduce((sum, arr) => sum + arr.length, 0);
@@ -58,7 +70,10 @@ class Decoder {
     for (const fragment of iface.fragments) {
       if (fragment.type !== "event") continue;
       const topic0 = iface.getEvent(fragment.name).topicHash;
-      const entry = { iface, eventName: fragment.name, eventType: `${category}` };
+      
+      // Build event type: category_eventname (e.g., "ERC20_TRANSFER", "UNISWAP_SWAP")
+      const eventType = `${category}_${fragment.name.toUpperCase()}`;
+      const entry = { iface, eventName: fragment.name, eventType };
 
       if (!this.interfaces.has(topic0)) {
         this.interfaces.set(topic0, [entry]);

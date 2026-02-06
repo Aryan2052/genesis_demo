@@ -1,0 +1,4 @@
+[
+  "event Paused(address account)",
+  "event Unpaused(address account)"
+]

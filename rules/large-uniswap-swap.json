@@ -1,0 +1,32 @@
+{
+  "rule_id": "large_uniswap_swap",
+  "name": "🔄 Large Uniswap V3 Swap",
+  "description": "Alert when a Uniswap V3 swap exceeds $100,000 — detects major trading activity",
+  "enabled": true,
+  "chain": "ethereum",
+  "event_type": "UNISWAP_SWAP",
+  "contracts": [
+    "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640",
+    "0x8ad599c3A0ff1De082011EFDDc58f1908eb6e6D8",
+    "0x4e68Ccd3E89f51C3074ca5072bbAC773960dFa36"
+  ],
+  "conditions": {
+    "amount_usd": { "gte": 100000 }
+  },
+  "aggregation": {
+    "enabled": true,
+    "window_sec": 60,
+    "group_by": ["contract", "sender"],
+    "summary": "total_volume"
+  },
+  "finality": "pending",
+  "cooldown_sec": 120,
+  "severity": "high",
+  "metadata": {
+    "pools": {
+      "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640": "USDC/ETH 0.05%",
+      "0x8ad599c3A0ff1De082011EFDDc58f1908eb6e6D8": "USDC/ETH 0.3%",
+      "0x4e68Ccd3E89f51C3074ca5072bbAC773960dFa36": "USDT/ETH 0.05%"
+    }
+  }
+}

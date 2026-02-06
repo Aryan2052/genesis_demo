@@ -1,0 +1,28 @@
+{
+  "rule_id": "liquidity_removal",
+  "name": "💧 Large Liquidity Removal",
+  "description": "Alert when liquidity is removed from Uniswap V3 pools > $50,000 — potential rug pull detector",
+  "enabled": true,
+  "chain": "ethereum",
+  "event_type": "UNISWAP_BURN",
+  "contracts": [
+    "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640",
+    "0x8ad599c3A0ff1De082011EFDDc58f1908eb6e6D8",
+    "0x4e68Ccd3E89f51C3074ca5072bbAC773960dFa36"
+  ],
+  "conditions": {
+    "amount_usd": { "gte": 50000 }
+  },
+  "aggregation": {
+    "enabled": true,
+    "window_sec": 60,
+    "group_by": ["owner", "contract"],
+    "summary": "total_amount"
+  },
+  "finality": "soft_confirmed",
+  "cooldown_sec": 180,
+  "severity": "critical",
+  "metadata": {
+    "alert_context": "Large liquidity removals can signal protocol instability or coordinated exits"
+  }
+}

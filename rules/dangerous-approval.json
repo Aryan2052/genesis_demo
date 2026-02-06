@@ -1,0 +1,29 @@
+{
+  "rule_id": "dangerous_approval",
+  "name": "⛔ Dangerous Token Approval",
+  "description": "Alert when token approvals exceed $1,000,000 — potential security risk or whale movement preparation",
+  "enabled": true,
+  "chain": "ethereum",
+  "event_type": "ERC20_APPROVAL",
+  "contracts": [
+    "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+  ],
+  "conditions": {
+    "amount_usd": { "gte": 1000000 }
+  },
+  "aggregation": {
+    "enabled": true,
+    "window_sec": 60,
+    "group_by": ["owner", "spender"],
+    "summary": "total_amount"
+  },
+  "finality": "pending",
+  "cooldown_sec": 300,
+  "severity": "critical",
+  "metadata": {
+    "alert_context": "Large approvals can enable exploits if the spender contract is compromised",
+    "contracts_monitored": ["USDT", "USDC", "DAI"]
+  }
+}

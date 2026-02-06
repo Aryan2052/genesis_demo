@@ -1,0 +1,26 @@
+{
+  "rule_id": "flash_loan_alert",
+  "name": "🌊 Flash Loan Detection",
+  "description": "Alert on flash loan activity from Aave V3 — often used for MEV, arbitrage, or exploits",
+  "enabled": true,
+  "chain": "ethereum",
+  "event_type": "AAVE_FLASH_LOAN",
+  "contracts": [
+    "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2"
+  ],
+  "conditions": {
+    "amount_usd": { "gte": 100000 }
+  },
+  "aggregation": {
+    "enabled": true,
+    "window_sec": 60,
+    "group_by": ["initiator", "asset"],
+    "summary": "total_amount"
+  },
+  "finality": "pending",
+  "cooldown_sec": 60,
+  "severity": "medium",
+  "metadata": {
+    "alert_context": "Flash loans enable capital-efficient strategies but also sophisticated attacks"
+  }
+}

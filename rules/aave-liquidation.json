@@ -1,0 +1,25 @@
+{
+  "rule_id": "aave_liquidation",
+  "name": "⚠️ Aave Liquidation Event",
+  "description": "Alert when liquidations occur on Aave V3 — indicates market volatility or user distress",
+  "enabled": true,
+  "chain": "ethereum",
+  "event_type": "AAVE_LIQUIDATION",
+  "contracts": [
+    "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2"
+  ],
+  "conditions": {},
+  "aggregation": {
+    "enabled": true,
+    "window_sec": 120,
+    "group_by": ["collateralAsset", "debtAsset"],
+    "summary": "count"
+  },
+  "finality": "pending",
+  "cooldown_sec": 300,
+  "severity": "high",
+  "metadata": {
+    "contract_name": "Aave V3 Pool",
+    "alert_context": "Liquidation events signal market stress or under-collateralized positions"
+  }
+}

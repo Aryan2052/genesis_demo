@@ -73,6 +73,9 @@ const config = {
     erc20: require("./abis/erc20.json"),
     erc721: require("./abis/erc721.json"),
     uniswapV2: require("./abis/uniswap-v2.json"),
+    uniswapV3: require("./abis/uniswap-v3.json"),
+    aaveV3: require("./abis/aave-v3.json"),
+    pausable: require("./abis/pausable.json"),
   },
 };
 

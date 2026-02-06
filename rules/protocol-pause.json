@@ -1,0 +1,28 @@
+{
+  "rule_id": "protocol_pause",
+  "name": "🔴 Protocol Pause Event",
+  "description": "Alert when major DeFi protocols activate emergency pause — indicates critical security issue",
+  "enabled": true,
+  "chain": "ethereum",
+  "event_type": "PAUSED",
+  "contracts": [
+    "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
+    "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9"
+  ],
+  "conditions": {},
+  "aggregation": {
+    "enabled": false
+  },
+  "finality": "pending",
+  "cooldown_sec": 0,
+  "severity": "critical",
+  "metadata": {
+    "alert_context": "Protocol pause events are emergency actions, usually indicating exploits or critical bugs",
+    "contracts_monitored": {
+      "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2": "Aave V3 Pool",
+      "0xdAC17F958D2ee523a2206206994597C13D831ec7": "USDT",
+      "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9": "Aave V2 Pool"
+    }
+  }
+}
