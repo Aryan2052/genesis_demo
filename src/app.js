@@ -22,8 +22,7 @@ const config = require("./config");
 const { RpcPool, BlockTracker, LogFetcher } = require("./observer");
 const { Decoder, FinalityTracker } = require("./pipeline");
 const { RuleLoader, RuleEvaluator, Aggregator, NoiseFilter } = require("./engine");
-const ConsoleNotifier = require("./notify/channels/console");
-const Dispatcher = require("./notify/dispatcher");
+const NotificationDispatcher = require("./notify/dispatcher");
 const { Database, EventRepository, AlertRepository } = require("./db");
 
 // ---------------------------------------------------------------------------
@@ -93,9 +92,8 @@ async function main() {
   const aggregator = new Aggregator();
   const noiseFilter = new NoiseFilter();
 
-  // --- 7. Notification Layer ---
-  const dispatcher = new Dispatcher();
-  dispatcher.addChannel("console", new ConsoleNotifier());
+  // --- 7. Notification Layer (Phase 4) ---
+  const notificationDispatcher = new NotificationDispatcher(config);
 
   // --- 8. SELECTIVE INDEXING: Rules drive what we watch ---
   //    This is the 70-90% RPC cost saving.
@@ -235,17 +233,22 @@ async function main() {
     drainBlockQueue();
   });
 
-  // --- 9. Aggregator → Noise Filter → Dispatcher → Database ---
+  // --- 9. Aggregator → Noise Filter → Notification Dispatcher → Database ---
 
   // Instant alerts (high/critical severity bypass aggregation)
   aggregator.on("alert", async (alert) => {
     if (noiseFilter.shouldPass(alert)) {
-      dispatcher.notifyAlert(alert);
+      // Dispatch to notification channels (Telegram, Webhook, Console)
+      try {
+        await notificationDispatcher.dispatch(alert);
+      } catch (err) {
+        console.error(`  💥 [Notification] Failed to dispatch alert: ${err.message}`);
+      }
       
       // Save alert to database
       try {
         await alertRepo.save(alert);
-        await alertRepo.markNotified(alert.alertId || alert.rule.rule_id, ["console"]);
+        await alertRepo.markNotified(alert.alertId || alert.rule.rule_id, ["telegram", "console"]);
       } catch (err) {
         console.error(`  💥 [Database] Failed to save alert: ${err.message}`);
       }
@@ -255,12 +258,17 @@ async function main() {
   // Aggregated alerts (window expired → summary)
   aggregator.on("alert:aggregated", async (alert) => {
     if (noiseFilter.shouldPassAggregated(alert)) {
-      dispatcher.notifyAggregated(alert);
+      // Dispatch to notification channels (Telegram, Webhook, Console)
+      try {
+        await notificationDispatcher.dispatch(alert);
+      } catch (err) {
+        console.error(`  💥 [Notification] Failed to dispatch aggregated alert: ${err.message}`);
+      }
       
       // Save aggregated alert to database
       try {
         await alertRepo.save(alert);
-        await alertRepo.markNotified(alert.alertId || alert.rule.rule_id, ["console"]);
+        await alertRepo.markNotified(alert.alertId || alert.rule.rule_id, ["telegram", "console"]);
       } catch (err) {
         console.error(`  💥 [Database] Failed to save aggregated alert: ${err.message}`);
       }
@@ -273,9 +281,7 @@ async function main() {
   });
 
   finalityTracker.on("finality:upgraded", async (data) => {
-    dispatcher.notifyFinalityUpgrade(data);
-    
-    // Update finality in database
+    // Update finality in database (no notification for finality upgrades - too verbose)
     try {
       if (!data.events || data.events.length === 0) return;
       
@@ -289,8 +295,18 @@ async function main() {
     }
   });
 
-  finalityTracker.on("finality:reverted", (data) => {
-    dispatcher.notifyRevert(data);
+  finalityTracker.on("finality:reverted", async (data) => {
+    // Critical event - log revert but don't spam notifications
+    console.log(`  🚨 Event reverted: ${data.event?.eventType || 'Unknown'} at block ${data.event?.blockNumber}`);
+    
+    // Update event as reverted in database
+    try {
+      if (data.event && data.event.id) {
+        await eventRepo.updateFinality(data.event.id, 'reverted');
+      }
+    } catch (err) {
+      console.error(`  💥 [Database] Failed to mark event as reverted: ${err.message}`);
+    }
   });
 
   // --- 11. Health check every 60s ---
@@ -305,7 +321,10 @@ async function main() {
     console.log(`\n  📊 Noise filter: ${nf.passed} passed, ${nf.suppressionRate} suppressed | Aggregator: ${ag.activeWindows} active window(s)\n`);
   }, 300_000);
 
-  // --- 13. Start ---
+  // --- 13. Test notification channels ---
+  await notificationDispatcher.testChannels();
+
+  // --- 14. Start ---
   console.log();
   console.log("  🚀 Starting Genesis...");
   console.log(`  🎯 Active rules: ${ruleLoader.getAll().length}`);

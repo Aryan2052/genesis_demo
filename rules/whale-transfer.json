@@ -1,6 +1,6 @@
 {
   "rule_id": "whale_usdt_transfer",
-  "name": "Whale USDT Transfer",
+  "name": "🐋 Whale USDT Transfer",
   "description": "Alert when a single USDT transfer exceeds $100,000",
   "enabled": true,
   "chain": "ethereum",
@@ -11,11 +11,11 @@
   },
   "aggregation": {
     "enabled": true,
-    "window_sec": 300,
+    "window_sec": 60,
     "group_by": ["from", "contract"],
     "summary": "total_amount"
   },
   "finality": "pending",
-  "cooldown_sec": 600,
+  "cooldown_sec": 120,
   "severity": "high"
 }

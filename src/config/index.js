@@ -52,6 +52,15 @@ const config = {
     host: process.env.API_HOST || "localhost",
   },
 
+  // Notification config (Phase 4)
+  TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+  TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID,
+  WEBHOOK_URL: process.env.WEBHOOK_URL,
+  WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
+  CONSOLE_ALERTS: process.env.CONSOLE_ALERTS !== 'false',
+  NOTIFICATION_MAX_RETRIES: parseInt(process.env.NOTIFICATION_MAX_RETRIES || '3', 10),
+  NOTIFICATION_RETRY_DELAY: parseInt(process.env.NOTIFICATION_RETRY_DELAY || '1000', 10),
+
   // Convenience: get a specific chain's config
   getChain(slug) {
     const chain = chains[slug];

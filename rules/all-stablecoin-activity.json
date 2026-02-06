@@ -2,7 +2,7 @@
   "rule_id": "all_stablecoin_activity",
   "name": "All Stablecoin Activity",
   "description": "Track all USDT and USDC transfers (low severity, no threshold) — useful for monitoring dashboards",
-  "enabled": true,
+  "enabled": false,
   "chain": "ethereum",
   "event_type": "ERC20_TRANSFER",
   "contracts": [

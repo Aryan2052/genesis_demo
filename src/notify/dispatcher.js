@@ -1,91 +1,163 @@
 /**
- * Genesis — Notification Dispatcher
- *
- * Routes alerts to one or more notification channels.
- * Phase 1: console only.
- * Phase 4: adds webhook, telegram, email.
+ * Notification Dispatcher
+ * Routes alerts to configured channels with retry logic and idempotency
  */
 
-class Dispatcher {
-  constructor() {
-    /** @type {Map<string, object>} */
-    this.channels = new Map();
+const TelegramChannel = require('./channels/telegram');
+const WebhookChannel = require('./channels/webhook');
+const ConsoleChannel = require('./channels/console');
+const RetryEngine = require('./retry');
+
+class NotificationDispatcher {
+  constructor(config) {
+    this.config = config;
+    
+    // Initialize channels
+    this.channels = {
+      telegram: new TelegramChannel(config),
+      webhook: new WebhookChannel(config),
+      console: new ConsoleChannel(config)
+    };
+    
+    // Initialize retry engine
+    this.retryEngine = new RetryEngine({
+      maxRetries: config.NOTIFICATION_MAX_RETRIES || 3,
+      baseDelay: config.NOTIFICATION_RETRY_DELAY || 1000,
+      maxDelay: 30000
+    });
+    
+    // Idempotency tracking (in-memory for MVP, would use Redis in production)
+    this.sentAlerts = new Set();
+    this.maxIdempotencyCache = config.MAX_IDEMPOTENCY_CACHE || 10000;
+    
+    console.log('✅ Notification dispatcher initialized');
   }
 
   /**
-   * Register a notification channel.
-   * @param {string} name
-   * @param {object} channel — must implement notify(), notifyFinalityUpgrade(), notifyRevert()
+   * Dispatch alert to all enabled channels
    */
-  addChannel(name, channel) {
-    this.channels.set(name, channel);
+  async dispatch(alert) {
+    // Generate idempotency key
+    const idempotencyKey = this.generateIdempotencyKey(alert);
+    
+    // Check if already sent
+    if (this.sentAlerts.has(idempotencyKey)) {
+      console.log('⏭️  Alert already sent (idempotent), skipping:', idempotencyKey);
+      return { success: true, cached: true };
+    }
+    
+    const results = {
+      alert_id: alert.id,
+      idempotency_key: idempotencyKey,
+      channels: {},
+      timestamp: Date.now()
+    };
+    
+    // Send to each enabled channel
+    const channelPromises = [];
+    
+    for (const [name, channel] of Object.entries(this.channels)) {
+      if (channel.enabled) {
+        channelPromises.push(
+          this.sendToChannel(name, channel, alert)
+            .then(result => {
+              results.channels[name] = result;
+            })
+            .catch(error => {
+              results.channels[name] = { success: false, error: error.message };
+            })
+        );
+      }
+    }
+    
+    await Promise.all(channelPromises);
+    
+    // Mark as sent (idempotency)
+    this.markAsSent(idempotencyKey);
+    
+    // Log summary
+    const successful = Object.values(results.channels).filter(r => r.success).length;
+    const total = Object.keys(results.channels).length;
+    console.log(`✅ Alert dispatched to ${successful}/${total} channels`);
+    
+    return results;
   }
 
-  /** Dispatch a new event to all channels (Phase 1 — raw events). */
-  notify(event) {
-    for (const channel of this.channels.values()) {
-      try {
-        channel.notify(event);
-      } catch (err) {
-        console.error(`  ⚠️  [Dispatcher] Channel error: ${err.message}`);
-      }
+  /**
+   * Send alert to a specific channel with retry
+   */
+  async sendToChannel(name, channel, alert) {
+    const result = await this.retryEngine.executeWithRetry(
+      () => channel.send(alert),
+      { channel: name, alert_id: alert.id }
+    );
+    
+    if (result.success) {
+      return { success: true, ...result.result };
+    } else {
+      console.error(`❌ Failed to send to ${name} after ${result.attempts} attempts`);
+      return { success: false, error: result.error.message, attempts: result.attempts };
     }
   }
 
-  /** Dispatch a rule-matched instant alert (Phase 2). */
-  notifyAlert(alert) {
-    for (const channel of this.channels.values()) {
-      try {
-        if (typeof channel.notifyAlert === "function") {
-          channel.notifyAlert(alert);
-        } else {
-          // Fallback to Phase 1 notify
-          channel.notify(alert.event);
-        }
-      } catch (err) {
-        console.error(`  ⚠️  [Dispatcher] Channel error: ${err.message}`);
-      }
+  /**
+   * Generate idempotency key for alert
+   */
+  generateIdempotencyKey(alert) {
+    if (alert.alert_type === 'aggregated') {
+      // For aggregated alerts: rule + from_block + to_block + event_count
+      return `agg:${alert.rule_name}:${alert.from_block}:${alert.to_block}:${alert.event_count}`;
+    } else {
+      // For single event alerts: rule + event_id
+      return `single:${alert.rule_name}:${alert.event?.event_id || alert.event_id}`;
     }
   }
 
-  /** Dispatch an aggregated alert (Phase 2). */
-  notifyAggregated(alert) {
-    for (const channel of this.channels.values()) {
-      try {
-        if (typeof channel.notifyAggregated === "function") {
-          channel.notifyAggregated(alert);
-        }
-      } catch (err) {
-        console.error(`  ⚠️  [Dispatcher] Channel error: ${err.message}`);
-      }
+  /**
+   * Mark alert as sent (idempotency tracking)
+   */
+  markAsSent(idempotencyKey) {
+    this.sentAlerts.add(idempotencyKey);
+    
+    // Simple LRU: if cache too large, clear oldest half
+    if (this.sentAlerts.size > this.maxIdempotencyCache) {
+      const toKeep = Array.from(this.sentAlerts).slice(-Math.floor(this.maxIdempotencyCache / 2));
+      this.sentAlerts = new Set(toKeep);
     }
   }
 
-  /** Dispatch a finality upgrade to all channels. */
-  notifyFinalityUpgrade(data) {
-    for (const channel of this.channels.values()) {
-      if (typeof channel.notifyFinalityUpgrade === "function") {
-        try {
-          channel.notifyFinalityUpgrade(data);
-        } catch (err) {
-          console.error(`  ⚠️  [Dispatcher] Channel error: ${err.message}`);
-        }
+  /**
+   * Test all channels
+   */
+  async testChannels() {
+    console.log('\n🧪 Testing notification channels...\n');
+    
+    for (const [name, channel] of Object.entries(this.channels)) {
+      if (channel.enabled) {
+        console.log(`Testing ${name}...`);
+        const result = await channel.test();
+        console.log(result.success ? `✅ ${name} OK` : `❌ ${name} FAILED: ${result.error}`);
+      } else {
+        console.log(`⏭️  ${name} disabled`);
       }
     }
+    
+    console.log('');
   }
 
-  /** Dispatch a revert notification to all channels. */
-  notifyRevert(data) {
-    for (const channel of this.channels.values()) {
-      if (typeof channel.notifyRevert === "function") {
-        try {
-          channel.notifyRevert(data);
-        } catch (err) {
-          console.error(`  ⚠️  [Dispatcher] Channel error: ${err.message}`);
-        }
-      }
-    }
+  /**
+   * Get dead letter queue
+   */
+  getDeadLetterQueue() {
+    return this.retryEngine.getDeadLetterQueue();
+  }
+
+  /**
+   * Clear dead letter queue
+   */
+  clearDeadLetterQueue() {
+    return this.retryEngine.clearDeadLetterQueue();
   }
 }
 
-module.exports = Dispatcher;
+module.exports = NotificationDispatcher;

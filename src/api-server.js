@@ -9,6 +9,7 @@
 
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 const config = require("./config");
 const { Database, EventRepository, AlertRepository } = require("./db");
 
@@ -19,6 +20,9 @@ const { Database, EventRepository, AlertRepository } = require("./db");
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Serve static dashboard files
+app.use(express.static(path.join(__dirname, "../public")));
 
 let db, eventRepo, alertRepo;
 

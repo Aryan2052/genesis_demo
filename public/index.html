@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Genesis — Blockchain Monitor Dashboard</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #333;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    header {
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      margin-bottom: 30px;
+    }
+
+    h1 {
+      color: #667eea;
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .status {
+      font-size: 0.9rem;
+      color: #666;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #4ade80;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .stat-card {
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+      transition: transform 0.2s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-5px);
+    }
+
+    .stat-label {
+      font-size: 0.85rem;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #667eea;
+    }
+
+    .stat-subtitle {
+      font-size: 0.8rem;
+      color: #999;
+      margin-top: 5px;
+    }
+
+    .panel {
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #f0f0f0;
+    }
+
+    .panel-title {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .refresh-btn {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: background 0.2s;
+    }
+
+    .refresh-btn:hover {
+      background: #5568d3;
+    }
+
+    .event-list, .alert-list {
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .event-item, .alert-item {
+      padding: 15px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      transition: all 0.2s;
+    }
+
+    .event-item:hover, .alert-item:hover {
+      border-color: #667eea;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+    }
+
+    .event-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .event-name {
+      font-weight: 600;
+      color: #333;
+      font-size: 1rem;
+    }
+
+    .event-type {
+      display: inline-block;
+      padding: 4px 10px;
+      background: #e0e7ff;
+      color: #667eea;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .event-details {
+      font-size: 0.85rem;
+      color: #666;
+      line-height: 1.6;
+    }
+
+    .event-meta {
+      display: flex;
+      gap: 15px;
+      margin-top: 8px;
+      font-size: 0.75rem;
+      color: #999;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .badge-pending { background: #fef3c7; color: #92400e; }
+    .badge-finalized { background: #dbeafe; color: #1e40af; }
+    .badge-permanent { background: #d1fae5; color: #065f46; }
+    .badge-low { background: #e0e7ff; color: #3730a3; }
+    .badge-medium { background: #fed7aa; color: #9a3412; }
+    .badge-high { background: #fecaca; color: #991b1b; }
+    .badge-critical { background: #f3e8ff; color: #6b21a8; }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #999;
+    }
+
+    .empty-state-icon {
+      font-size: 4rem;
+      margin-bottom: 15px;
+      opacity: 0.3;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #667eea;
+    }
+
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .contract-address, .tx-hash {
+      font-family: 'Courier New', monospace;
+      font-size: 0.8rem;
+      color: #667eea;
+      cursor: pointer;
+    }
+
+    .contract-address:hover, .tx-hash:hover {
+      text-decoration: underline;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .tab {
+      padding: 10px 20px;
+      background: #f3f4f6;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    .tab.active {
+      background: #667eea;
+      color: white;
+    }
+
+    .tab:hover:not(.active) {
+      background: #e5e7eb;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>
+        <span>🔮</span>
+        Genesis
+      </h1>
+      <div class="status">
+        <div class="status-indicator"></div>
+        <span>Blockchain Monitor Active</span>
+        <span id="last-update" style="margin-left: auto; font-size: 0.8rem;"></span>
+      </div>
+    </header>
+
+    <!-- Stats Grid -->
+    <div class="grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Events</div>
+        <div class="stat-value" id="total-events">-</div>
+        <div class="stat-subtitle">Tracked on-chain</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active Alerts</div>
+        <div class="stat-value" id="total-alerts">-</div>
+        <div class="stat-subtitle">Generated</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Chains</div>
+        <div class="stat-value" id="chains">-</div>
+        <div class="stat-subtitle">Monitored</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Database Size</div>
+        <div class="stat-value" id="db-size">-</div>
+        <div class="stat-subtitle">SQLite</div>
+      </div>
+    </div>
+
+    <!-- Events Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <h2 class="panel-title">📊 Recent Events</h2>
+        <button class="refresh-btn" onclick="loadEvents()">↻ Refresh</button>
+      </div>
+      <div class="tabs">
+        <button class="tab active" onclick="filterEvents('all')">All</button>
+        <button class="tab" onclick="filterEvents('ERC20_TRANSFER')">ERC20 Transfers</button>
+        <button class="tab" onclick="filterEvents('pending')">Pending</button>
+        <button class="tab" onclick="filterEvents('finalized')">Finalized</button>
+      </div>
+      <div id="events-container" class="event-list">
+        <div class="loading">
+          <div class="spinner"></div>
+          <div>Loading events...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alerts Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <h2 class="panel-title">🚨 Alerts</h2>
+        <button class="refresh-btn" onclick="loadAlerts()">↻ Refresh</button>
+      </div>
+      <div id="alerts-container" class="alert-list">
+        <div class="loading">
+          <div class="spinner"></div>
+          <div>Loading alerts...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:3000';
+    let allEvents = [];
+    let currentFilter = 'all';
+
+    // Initialize dashboard
+    async function init() {
+      await Promise.all([
+        loadStats(),
+        loadEvents(),
+        loadAlerts()
+      ]);
+      updateTimestamp();
+      
+      // Auto-refresh every 10 seconds
+      setInterval(() => {
+        loadStats();
+        loadEvents();
+        loadAlerts();
+        updateTimestamp();
+      }, 10000);
+    }
+
+    function updateTimestamp() {
+      document.getElementById('last-update').textContent = 
+        'Last update: ' + new Date().toLocaleTimeString();
+    }
+
+    // Load statistics
+    async function loadStats() {
+      try {
+        const [eventsStats, alertsStats] = await Promise.all([
+          fetch(`${API_URL}/events/stats`).then(r => r.json()),
+          fetch(`${API_URL}/alerts/stats`).then(r => r.json())
+        ]);
+
+        document.getElementById('total-events').textContent = 
+          eventsStats.totalEvents?.toLocaleString() || '0';
+        document.getElementById('total-alerts').textContent = 
+          alertsStats.totalAlerts?.toLocaleString() || '0';
+        document.getElementById('chains').textContent = 
+          eventsStats.chains?.length || '0';
+        
+        // Calculate DB size (approximate)
+        const dbSizeKB = Math.round(eventsStats.totalEvents * 1);
+        document.getElementById('db-size').textContent = 
+          dbSizeKB > 1024 ? (dbSizeKB / 1024).toFixed(1) + ' MB' : dbSizeKB + ' KB';
+      } catch (err) {
+        console.error('Failed to load stats:', err);
+      }
+    }
+
+    // Load events
+    async function loadEvents() {
+      try {
+        const response = await fetch(`${API_URL}/events?limit=50&sortBy=timestamp&sortOrder=desc`);
+        const data = await response.json();
+        allEvents = data.events || [];
+        renderEvents();
+      } catch (err) {
+        console.error('Failed to load events:', err);
+        document.getElementById('events-container').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <div>Failed to load events</div>
+          </div>
+        `;
+      }
+    }
+
+    function filterEvents(filter) {
+      currentFilter = filter;
+      
+      // Update tab styling
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      event.target.classList.add('active');
+      
+      renderEvents();
+    }
+
+    function renderEvents() {
+      let filteredEvents = allEvents;
+      
+      if (currentFilter !== 'all') {
+        filteredEvents = allEvents.filter(e => 
+          e.event_type === currentFilter || e.finality === currentFilter
+        );
+      }
+
+      const container = document.getElementById('events-container');
+      
+      if (filteredEvents.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <div>No events found</div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filteredEvents.map(event => `
+        <div class="event-item">
+          <div class="event-header">
+            <span class="event-name">${event.event_name || 'Unknown Event'}</span>
+            <span class="event-type">${event.event_type || 'UNKNOWN'}</span>
+          </div>
+          <div class="event-details">
+            <div>
+              <strong>Contract:</strong> 
+              <span class="contract-address" onclick="copyToClipboard('${event.contract_address}')" 
+                    title="Click to copy">${shortenAddress(event.contract_address)}</span>
+            </div>
+            <div>
+              <strong>Block:</strong> ${event.block_number?.toLocaleString()} 
+              <span style="margin-left: 10px;"><strong>Chain:</strong> ${event.chain}</span>
+            </div>
+            ${event.decoded_data ? `
+              <div style="margin-top: 5px;">
+                <strong>Data:</strong> ${formatDecodedData(event.decoded_data)}
+              </div>
+            ` : ''}
+          </div>
+          <div class="event-meta">
+            <span class="badge badge-${event.finality}">${event.finality || 'pending'}</span>
+            <span>TX: <span class="tx-hash" onclick="copyToClipboard('${event.tx_hash}')" 
+                  title="Click to copy">${shortenHash(event.tx_hash)}</span></span>
+            <span>${formatTimestamp(event.timestamp)}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Load alerts
+    async function loadAlerts() {
+      try {
+        const response = await fetch(`${API_URL}/alerts?limit=20`);
+        const data = await response.json();
+        const alerts = data.alerts || [];
+
+        const container = document.getElementById('alerts-container');
+        
+        if (alerts.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">✅</div>
+              <div>No alerts generated</div>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = alerts.map(alert => `
+          <div class="alert-item">
+            <div class="event-header">
+              <span class="event-name">${alert.rule_name || 'Alert'}</span>
+              <span class="badge badge-${alert.severity}">${alert.severity}</span>
+            </div>
+            <div class="event-details">
+              <div><strong>Type:</strong> ${alert.alert_type}</div>
+              <div><strong>Events:</strong> ${alert.event_count} events matched</div>
+              ${alert.from_block ? `
+                <div><strong>Block Range:</strong> ${alert.from_block?.toLocaleString()} → ${alert.to_block?.toLocaleString()}</div>
+              ` : ''}
+              ${alert.message ? `
+                <div style="margin-top: 5px; font-style: italic;">${alert.message}</div>
+              ` : ''}
+            </div>
+            <div class="event-meta">
+              <span>${alert.chain || 'ethereum'}</span>
+              <span>${formatTimestamp(alert.created_at)}</span>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Failed to load alerts:', err);
+        document.getElementById('alerts-container').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <div>Failed to load alerts</div>
+          </div>
+        `;
+      }
+    }
+
+    // Utility functions
+    function shortenAddress(addr) {
+      if (!addr) return 'N/A';
+      return addr.substring(0, 6) + '...' + addr.substring(addr.length - 4);
+    }
+
+    function shortenHash(hash) {
+      if (!hash) return 'N/A';
+      return hash.substring(0, 10) + '...' + hash.substring(hash.length - 8);
+    }
+
+    function formatTimestamp(ts) {
+      if (!ts) return 'N/A';
+      const date = new Date(ts * 1000);
+      return date.toLocaleString();
+    }
+
+    function formatDecodedData(data) {
+      try {
+        const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+        if (parsed.from && parsed.to && parsed.value) {
+          return `${shortenAddress(parsed.from)} → ${shortenAddress(parsed.to)} (${formatValue(parsed.value)})`;
+        }
+        return JSON.stringify(parsed);
+      } catch {
+        return String(data);
+      }
+    }
+
+    function formatValue(value) {
+      if (!value) return '0';
+      // Assume 6 decimals for USDC
+      const num = parseInt(value) / 1000000;
+      return num.toLocaleString() + ' USDC';
+    }
+
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text);
+      alert('Copied: ' + text);
+    }
+
+    // Start dashboard
+    init();
+  </script>
+</body>
+</html>
