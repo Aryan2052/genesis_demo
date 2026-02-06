@@ -41,6 +41,22 @@ const config = {
   defaultChain: process.env.DEFAULT_CHAIN || "ethereum",
   chains,
 
+  // Database config (Phase 3)
+  database: {
+    host: process.env.POSTGRES_HOST || "localhost",
+    port: parseInt(process.env.POSTGRES_PORT || "5432", 10),
+    database: process.env.POSTGRES_DB || process.env.POSTGRES_NAME || "genesis_events",
+    user: process.env.POSTGRES_USER || "postgres",
+    password: process.env.POSTGRES_PASSWORD || "",
+    url: process.env.POSTGRES_URL || "",
+  },
+
+  // API server config (Phase 3)
+  api: {
+    port: parseInt(process.env.API_PORT || "3000", 10),
+    host: process.env.API_HOST || "localhost",
+  },
+
   // Convenience: get a specific chain's config
   getChain(slug) {
     const chain = chains[slug];

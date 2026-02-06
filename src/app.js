@@ -1,10 +1,11 @@
 /**
- * Genesis — Main Application (Phase 2)
+ * Genesis — Main Application (Phase 3)
  *
  * Full pipeline:
  *   Observer (RPC Pool → Block Tracker → Log Fetcher)
  *     → Pipeline (Decoder → Event Model → Finality Tracker)
  *       → Engine (Rule Evaluator → Aggregator → Noise Filter)
+ *         → Database (Postgres → Event Repository → Alert Repository)
  *         → Notifications (Dispatcher → Console)
  *
  * Rules drive EVERYTHING:
@@ -23,6 +24,7 @@ const { Decoder, FinalityTracker } = require("./pipeline");
 const { RuleLoader, RuleEvaluator, Aggregator, NoiseFilter } = require("./engine");
 const ConsoleNotifier = require("./notify/channels/console");
 const Dispatcher = require("./notify/dispatcher");
+const { Database, EventRepository, AlertRepository } = require("./db");
 
 // ---------------------------------------------------------------------------
 // Parse CLI args
@@ -57,7 +59,16 @@ async function main() {
   console.log(`  🌐 Chain: ${chainConfig.name} (ID: ${chainConfig.chainId})`);
   console.log();
 
-  // --- 2. Load rules ---
+  // --- 2. Database Layer (Phase 3) ---
+  const db = new Database(config.database);
+  await db.connect();
+  await db.migrate(); // Run schema migrations
+  
+  const eventRepo = new EventRepository(db);
+  const alertRepo = new AlertRepository(db);
+  console.log();
+
+  // --- 3. Load rules ---
   const ruleLoader = new RuleLoader();
   ruleLoader.load();
   ruleLoader.watch(); // hot-reload on file changes
@@ -68,25 +79,25 @@ async function main() {
   }
   console.log();
 
-  // --- 3. Observer Layer ---
+  // --- 4. Observer Layer ---
   const rpcPool = new RpcPool(chainConfig);
   const blockTracker = new BlockTracker(rpcPool, chainConfig);
   const logFetcher = new LogFetcher(rpcPool, chainConfig);
 
-  // --- 4. Pipeline Layer ---
+  // --- 5. Pipeline Layer ---
   const decoder = new Decoder(chainConfig, config.abis);
   const finalityTracker = new FinalityTracker(chainConfig);
 
-  // --- 5. Engine Layer (Phase 2) ---
+  // --- 6. Engine Layer (Phase 2) ---
   const ruleEvaluator = new RuleEvaluator(ruleLoader);
   const aggregator = new Aggregator();
   const noiseFilter = new NoiseFilter();
 
-  // --- 6. Notification Layer ---
+  // --- 7. Notification Layer ---
   const dispatcher = new Dispatcher();
   dispatcher.addChannel("console", new ConsoleNotifier());
 
-  // --- 7. SELECTIVE INDEXING: Rules drive what we watch ---
+  // --- 8. SELECTIVE INDEXING: Rules drive what we watch ---
   //    This is the 70-90% RPC cost saving.
   //    Instead of watching "everything", we only watch contracts referenced in rules.
   function syncWatchTargets() {
@@ -170,6 +181,17 @@ async function main() {
       return;
     }
 
+    // ┌─────────────────────────────────────────────┐
+    // │  PHASE 3: Save events to database           │
+    // └─────────────────────────────────────────────┘
+
+    try {
+      await eventRepo.saveBatch(events);
+    } catch (err) {
+      console.error(`  💥 [Database] Failed to save events: ${err.message}`);
+      // Continue processing even if DB save fails
+    }
+
     // Track finality for all decoded events
     for (const event of events) {
       finalityTracker.track(event);
@@ -213,19 +235,35 @@ async function main() {
     drainBlockQueue();
   });
 
-  // --- 9. Aggregator → Noise Filter → Dispatcher ---
+  // --- 9. Aggregator → Noise Filter → Dispatcher → Database ---
 
   // Instant alerts (high/critical severity bypass aggregation)
-  aggregator.on("alert", (alert) => {
+  aggregator.on("alert", async (alert) => {
     if (noiseFilter.shouldPass(alert)) {
       dispatcher.notifyAlert(alert);
+      
+      // Save alert to database
+      try {
+        await alertRepo.save(alert);
+        await alertRepo.markNotified(alert.alertId || alert.rule.rule_id, ["console"]);
+      } catch (err) {
+        console.error(`  💥 [Database] Failed to save alert: ${err.message}`);
+      }
     }
   });
 
   // Aggregated alerts (window expired → summary)
-  aggregator.on("alert:aggregated", (alert) => {
+  aggregator.on("alert:aggregated", async (alert) => {
     if (noiseFilter.shouldPassAggregated(alert)) {
       dispatcher.notifyAggregated(alert);
+      
+      // Save aggregated alert to database
+      try {
+        await alertRepo.save(alert);
+        await alertRepo.markNotified(alert.alertId || alert.rule.rule_id, ["console"]);
+      } catch (err) {
+        console.error(`  💥 [Database] Failed to save aggregated alert: ${err.message}`);
+      }
     }
   });
 
@@ -234,8 +272,19 @@ async function main() {
     finalityTracker.onReorg(reorg);
   });
 
-  finalityTracker.on("finality:upgraded", (data) => {
+  finalityTracker.on("finality:upgraded", async (data) => {
     dispatcher.notifyFinalityUpgrade(data);
+    
+    // Update finality in database
+    try {
+      const updates = data.events.map(e => ({
+        eventId: e.eventId,
+        finality: data.newStatus,
+      }));
+      await eventRepo.updateFinalityBatch(updates);
+    } catch (err) {
+      console.error(`  💥 [Database] Failed to update finality: ${err.message}`);
+    }
   });
 
   finalityTracker.on("finality:reverted", (data) => {
@@ -272,7 +321,7 @@ async function main() {
   await blockTracker.start();
 
   // --- 14. Graceful shutdown ---
-  const shutdown = () => {
+  const shutdown = async () => {
     console.log("\n  🛑 Shutting down Genesis...");
     blockTracker.stop();
     clearInterval(healthInterval);
@@ -281,14 +330,22 @@ async function main() {
     ruleLoader.stop();
     rpcPool.destroy();
 
+    // Close database connection
+    await db.close();
+
     // Print final stats
     const finalityStats = finalityTracker.getStats();
     const noiseStats = noiseFilter.getStats();
+    const dbStats = db.getStats();
+    
     console.log(`  📊 Final stats:`);
     console.log(`     Events tracked: ${finalityStats.totalTracked}`);
     console.log(`     Finality: ${JSON.stringify(finalityStats.byStatus)}`);
     console.log(`     Noise filter: ${noiseStats.passed} passed, ${noiseStats.suppressionRate} suppressed`);
     console.log(`       ↳ Cooldown: ${noiseStats.suppressed_cooldown} | Dedup: ${noiseStats.suppressed_dedup} | Severity: ${noiseStats.suppressed_severity}`);
+    if (dbStats) {
+      console.log(`     Database pool: ${dbStats.total} total, ${dbStats.idle} idle`);
+    }
     console.log("  👋 Goodbye!\n");
 
     process.exit(0);
