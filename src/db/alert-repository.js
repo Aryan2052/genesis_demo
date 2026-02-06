@@ -21,20 +21,13 @@ class AlertRepository {
         from_block, to_block,
         window_start, window_end, window_duration,
         data, notified, notified_at, notification_channels
-      ) VALUES (
-        $1, $2, $3, $4, $5,
-        $6, $7, $8,
-        $9, $10,
-        $11, $12, $13,
-        $14, $15, $16, $17
-      )
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (alert_id) DO UPDATE SET
-        event_count = EXCLUDED.event_count,
-        data = EXCLUDED.data,
-        notified = EXCLUDED.notified,
-        notified_at = EXCLUDED.notified_at,
-        notification_channels = EXCLUDED.notification_channels
-      RETURNING id
+        event_count = excluded.event_count,
+        data = excluded.data,
+        notified = excluded.notified,
+        notified_at = excluded.notified_at,
+        notification_channels = excluded.notification_channels
     `;
 
     const params = [
@@ -43,25 +36,25 @@ class AlertRepository {
       alert.rule.rule_id,
       alert.rule.name,
       alert.rule.severity,
-      alert.chain,
-      alert.eventIds || [],
-      alert.count || 1,
-      alert.fromBlock || alert.event?.blockNumber,
-      alert.toBlock || alert.event?.blockNumber,
+      alert.chain || (alert.events && alert.events[0]?.chain) || alert.event?.chain || null,
+      JSON.stringify(alert.eventIds || (alert.events ? alert.events.map(e => e.id) : [])),
+      alert.count || (alert.events ? alert.events.length : 1),
+      alert.fromBlock || (alert.events && alert.events[0]?.blockNumber) || alert.event?.blockNumber || null,
+      alert.toBlock || (alert.events && alert.events[alert.events.length - 1]?.blockNumber) || alert.event?.blockNumber || null,
       alert.windowStart || null,
       alert.windowEnd || null,
-      alert.windowDuration || null,
-      JSON.stringify(alert.data || {}),
-      alert.notified || false,
+      alert.windowDuration || (alert.summary?.duration_sec) || null,
+      JSON.stringify(alert.data || alert.summary || {}),
+      alert.notified ? 1 : 0,
       alert.notifiedAt || null,
-      alert.notificationChannels || ["console"],
+      JSON.stringify(alert.notificationChannels || ["console"]),
     ];
 
     try {
       const result = await this.db.query(query, params);
-      return result.rows[0].id;
+      return result.rows[0]?.id || null;
     } catch (err) {
-      console.error(`  💥 [AlertRepository] Save failed: ${err.message}`);
+      console.error(`  💥 [AlertRepository] Save failed: ${err?.message || err}`);
       throw err;
     }
   }

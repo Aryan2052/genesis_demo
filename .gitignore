@@ -25,5 +25,10 @@ Thumbs.db
 logs/
 *.log
 
+# Database
+data/
+*.db
+*.db-journal
+
 # Misc
 *.tgz

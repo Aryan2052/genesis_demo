@@ -1,5 +1,5 @@
 -- Genesis Database Schema
--- PostgreSQL 12+
+-- SQLite 3
 
 -- ============================================================================
 -- EVENTS TABLE
@@ -8,38 +8,38 @@
 
 CREATE TABLE IF NOT EXISTS events (
   -- Primary key
-  id BIGSERIAL PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   
   -- Event identification
-  event_id VARCHAR(100) UNIQUE NOT NULL, -- chainId:blockNumber:txIndex:logIndex
-  chain VARCHAR(50) NOT NULL,
+  event_id TEXT UNIQUE NOT NULL,
+  chain TEXT NOT NULL,
   chain_id INTEGER NOT NULL,
   
   -- Block data
-  block_number BIGINT NOT NULL,
-  block_hash VARCHAR(66) NOT NULL,
-  block_timestamp BIGINT NOT NULL, -- Unix timestamp
+  block_number INTEGER NOT NULL,
+  block_hash TEXT NOT NULL,
+  block_timestamp INTEGER NOT NULL,
   
   -- Transaction data
-  tx_hash VARCHAR(66) NOT NULL,
-  tx_index INTEGER NOT NULL,
+  tx_hash TEXT NOT NULL,
+  tx_index INTEGER,  -- Nullable - not always available from log data
   log_index INTEGER NOT NULL,
   
   -- Event metadata
-  contract_address VARCHAR(42) NOT NULL,
-  event_name VARCHAR(100) NOT NULL,
-  event_type VARCHAR(50) NOT NULL, -- ERC20_TRANSFER, UNISWAP_V2, etc.
+  contract_address TEXT NOT NULL,
+  event_name TEXT NOT NULL,
+  event_type TEXT NOT NULL,
   
-  -- Event arguments (JSONB for flexible querying)
-  args JSONB NOT NULL,
+  -- Event arguments (JSON for flexible querying)
+  args TEXT NOT NULL,
   
   -- Finality tracking
-  finality VARCHAR(20) NOT NULL, -- pending, soft_confirmed, final
-  finality_updated_at BIGINT, -- Last finality upgrade timestamp
+  finality TEXT NOT NULL,
+  finality_updated_at INTEGER,
   
   -- Metadata
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+  created_at INTEGER DEFAULT (strftime('%s', 'now')),
+  updated_at INTEGER DEFAULT (strftime('%s', 'now'))
 );
 
 -- Indexes for fast queries
@@ -50,9 +50,6 @@ CREATE INDEX IF NOT EXISTS idx_events_finality ON events(finality, block_number 
 CREATE INDEX IF NOT EXISTS idx_events_tx_hash ON events(tx_hash);
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(block_timestamp DESC);
 
--- GIN index for JSONB args (enables fast JSON queries)
-CREATE INDEX IF NOT EXISTS idx_events_args_gin ON events USING GIN (args);
-
 -- ============================================================================
 -- ALERTS TABLE
 -- Stores all generated alerts (instant + aggregated)
@@ -60,43 +57,43 @@ CREATE INDEX IF NOT EXISTS idx_events_args_gin ON events USING GIN (args);
 
 CREATE TABLE IF NOT EXISTS alerts (
   -- Primary key
-  id BIGSERIAL PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   
   -- Alert identification
-  alert_id VARCHAR(100) UNIQUE NOT NULL,
-  alert_type VARCHAR(20) NOT NULL, -- instant, aggregated
+  alert_id TEXT UNIQUE NOT NULL,
+  alert_type TEXT NOT NULL,
   
   -- Rule reference
-  rule_id VARCHAR(100) NOT NULL,
-  rule_name VARCHAR(200) NOT NULL,
-  severity VARCHAR(20) NOT NULL, -- low, medium, high, critical
+  rule_id TEXT NOT NULL,
+  rule_name TEXT NOT NULL,
+  severity TEXT NOT NULL,
   
   -- Chain context
-  chain VARCHAR(50) NOT NULL,
+  chain TEXT NOT NULL,
   
-  -- Event references
-  event_ids TEXT[], -- Array of event_id references
+  -- Event references (stored as JSON array)
+  event_ids TEXT,
   event_count INTEGER NOT NULL DEFAULT 1,
   
   -- Block range
-  from_block BIGINT NOT NULL,
-  to_block BIGINT NOT NULL,
+  from_block INTEGER NOT NULL,
+  to_block INTEGER NOT NULL,
   
   -- Time window (for aggregated alerts)
-  window_start BIGINT, -- Unix timestamp
-  window_end BIGINT,   -- Unix timestamp
-  window_duration INTEGER, -- Seconds
+  window_start INTEGER,
+  window_end INTEGER,
+  window_duration INTEGER,
   
-  -- Alert data (JSONB for flexibility)
-  data JSONB NOT NULL,
+  -- Alert data (JSON for flexibility)
+  data TEXT NOT NULL,
   
   -- Notification status
-  notified BOOLEAN DEFAULT FALSE,
-  notified_at BIGINT,
-  notification_channels TEXT[], -- ['console', 'telegram', 'webhook']
+  notified INTEGER DEFAULT 0,
+  notified_at INTEGER,
+  notification_channels TEXT,
   
   -- Metadata
-  created_at TIMESTAMP DEFAULT NOW()
+  created_at INTEGER DEFAULT (strftime('%s', 'now'))
 );
 
 -- Indexes
@@ -107,22 +104,20 @@ CREATE INDEX IF NOT EXISTS idx_alerts_type ON alerts(alert_type, created_at DESC
 CREATE INDEX IF NOT EXISTS idx_alerts_notified ON alerts(notified, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_alerts_blocks ON alerts(from_block, to_block);
 
--- GIN index for JSONB data
-CREATE INDEX IF NOT EXISTS idx_alerts_data_gin ON alerts USING GIN (data);
-
 -- ============================================================================
 -- FINALITY_HISTORY TABLE
 -- Tracks finality state changes for events (optional, for audit trail)
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS finality_history (
-  id BIGSERIAL PRIMARY KEY,
-  event_id VARCHAR(100) NOT NULL REFERENCES events(event_id),
-  from_finality VARCHAR(20) NOT NULL,
-  to_finality VARCHAR(20) NOT NULL,
-  block_number BIGINT NOT NULL, -- Block number when upgrade happened
-  changed_at BIGINT NOT NULL, -- Unix timestamp
-  created_at TIMESTAMP DEFAULT NOW()
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id TEXT NOT NULL,
+  from_finality TEXT NOT NULL,
+  to_finality TEXT NOT NULL,
+  block_number INTEGER NOT NULL,
+  changed_at INTEGER NOT NULL,
+  created_at INTEGER DEFAULT (strftime('%s', 'now')),
+  FOREIGN KEY (event_id) REFERENCES events(event_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_finality_history_event ON finality_history(event_id, changed_at DESC);
@@ -133,10 +128,10 @@ CREATE INDEX IF NOT EXISTS idx_finality_history_event ON finality_history(event_
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS stats (
-  id BIGSERIAL PRIMARY KEY,
-  stat_type VARCHAR(50) NOT NULL, -- daily_events, hourly_alerts, etc.
-  chain VARCHAR(50) NOT NULL,
-  time_bucket BIGINT NOT NULL, -- Unix timestamp (rounded to hour/day)
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  stat_type TEXT NOT NULL,
+  chain TEXT NOT NULL,
+  time_bucket INTEGER NOT NULL,
   
   -- Counters
   event_count INTEGER DEFAULT 0,
@@ -145,11 +140,11 @@ CREATE TABLE IF NOT EXISTS stats (
   unique_senders INTEGER DEFAULT 0,
   unique_receivers INTEGER DEFAULT 0,
   
-  -- Data (JSONB for flexible metrics)
-  data JSONB,
+  -- Data (JSON for flexible metrics)
+  data TEXT,
   
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW(),
+  created_at INTEGER DEFAULT (strftime('%s', 'now')),
+  updated_at INTEGER DEFAULT (strftime('%s', 'now')),
   
   UNIQUE(stat_type, chain, time_bucket)
 );
@@ -162,25 +157,25 @@ CREATE INDEX IF NOT EXISTS idx_stats_type_chain ON stats(stat_type, chain, time_
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS health (
-  id BIGSERIAL PRIMARY KEY,
-  chain VARCHAR(50) NOT NULL,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chain TEXT NOT NULL,
   
   -- Block tracking
-  latest_block BIGINT NOT NULL,
-  latest_block_timestamp BIGINT NOT NULL,
-  blocks_processed BIGINT DEFAULT 0,
+  latest_block INTEGER NOT NULL,
+  latest_block_timestamp INTEGER NOT NULL,
+  blocks_processed INTEGER DEFAULT 0,
   
   -- Event metrics
-  events_decoded BIGINT DEFAULT 0,
-  decode_success_rate DECIMAL(5,2), -- Percentage
+  events_decoded INTEGER DEFAULT 0,
+  decode_success_rate REAL,
   
   -- RPC health
   rpc_providers_healthy INTEGER DEFAULT 0,
   rpc_providers_total INTEGER DEFAULT 0,
   
   -- Timestamp
-  checked_at BIGINT NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW(),
+  checked_at INTEGER NOT NULL,
+  created_at INTEGER DEFAULT (strftime('%s', 'now')),
   
   UNIQUE(chain, checked_at)
 );

@@ -277,8 +277,10 @@ async function main() {
     
     // Update finality in database
     try {
+      if (!data.events || data.events.length === 0) return;
+      
       const updates = data.events.map(e => ({
-        eventId: e.eventId,
+        eventId: e.id,  // Event model uses 'id' not 'eventId'
         finality: data.newStatus,
       }));
       await eventRepo.updateFinalityBatch(updates);

@@ -22,31 +22,24 @@ class EventRepository {
         tx_hash, tx_index, log_index,
         contract_address, event_name, event_type,
         args, finality, finality_updated_at
-      ) VALUES (
-        $1, $2, $3,
-        $4, $5, $6,
-        $7, $8, $9,
-        $10, $11, $12,
-        $13, $14, $15
-      )
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (event_id) DO UPDATE SET
-        finality = EXCLUDED.finality,
-        finality_updated_at = EXCLUDED.finality_updated_at,
-        updated_at = NOW()
-      RETURNING id
+        finality = excluded.finality,
+        finality_updated_at = excluded.finality_updated_at,
+        updated_at = strftime('%s', 'now')
     `;
 
     const params = [
-      event.eventId,
+      event.id,  // Event model uses 'id' not 'eventId'
       event.chain,
       event.chainId,
       event.blockNumber,
       event.blockHash,
       event.timestamp,
       event.txHash,
-      event.txIndex,
+      null,  // tx_index - not provided by event model
       event.logIndex,
-      event.address,
+      event.contract,  // Event model uses 'contract' not 'address'
       event.eventName,
       event.eventType,
       JSON.stringify(event.args),
@@ -55,10 +48,12 @@ class EventRepository {
     ];
 
     try {
-      const result = await this.db.query(query, params);
-      return result.rows[0].id;
+      await this.db.query(query, params);
+      // Get last inserted ID
+      const result = await this.db.query("SELECT last_insert_rowid() as id");
+      return result.rows[0]?.id || null;
     } catch (err) {
-      console.error(`  💥 [EventRepository] Save failed for ${event.eventId}: ${err.message}`);
+      console.error(`  💥 [EventRepository] Save failed for ${event.id}: ${err?.message || err}`);
       throw err;
     }
   }
@@ -70,7 +65,7 @@ class EventRepository {
   async saveBatch(events) {
     if (events.length === 0) return [];
 
-    const tx = await this.db.beginTransaction();
+    const tx = this.db.beginTransaction();
 
     try {
       const ids = [];
@@ -83,31 +78,24 @@ class EventRepository {
             tx_hash, tx_index, log_index,
             contract_address, event_name, event_type,
             args, finality, finality_updated_at
-          ) VALUES (
-            $1, $2, $3,
-            $4, $5, $6,
-            $7, $8, $9,
-            $10, $11, $12,
-            $13, $14, $15
-          )
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT (event_id) DO UPDATE SET
-            finality = EXCLUDED.finality,
-            finality_updated_at = EXCLUDED.finality_updated_at,
-            updated_at = NOW()
-          RETURNING id
+            finality = excluded.finality,
+            finality_updated_at = excluded.finality_updated_at,
+            updated_at = strftime('%s', 'now')
         `;
 
         const params = [
-          event.eventId,
+          event.id,  // Event model uses 'id' not 'eventId'
           event.chain,
           event.chainId,
           event.blockNumber,
           event.blockHash,
           event.timestamp,
           event.txHash,
-          event.txIndex,
+          null,  // tx_index - not provided by event model
           event.logIndex,
-          event.address,
+          event.contract,  // Event model uses 'contract' not 'address'
           event.eventName,
           event.eventType,
           JSON.stringify(event.args),
@@ -115,15 +103,17 @@ class EventRepository {
           Math.floor(Date.now() / 1000),
         ];
 
-        const result = await tx.query(query, params);
-        ids.push(result.rows[0].id);
+        tx.query(query, params);
+        // Get last inserted ID after each insert
+        const result = tx.query("SELECT last_insert_rowid() as id");
+        ids.push(result.rows[0]?.id || null);
       }
 
-      await tx.commit();
+      tx.commit();
       return ids;
     } catch (err) {
-      await tx.rollback();
-      console.error(`  💥 [EventRepository] Batch save failed: ${err.message}`);
+      tx.rollback();
+      console.error(`  💥 [EventRepository] Batch save failed: ${err?.message || err}`);
       throw err;
     }
   }
@@ -159,19 +149,19 @@ class EventRepository {
   async updateFinalityBatch(updates) {
     if (updates.length === 0) return;
 
-    const tx = await this.db.beginTransaction();
+    const tx = this.db.beginTransaction();
 
     try {
       for (const { eventId, finality } of updates) {
-        await tx.query(
-          `UPDATE events SET finality = $1, finality_updated_at = $2, updated_at = NOW() WHERE event_id = $3`,
+        tx.query(
+          `UPDATE events SET finality = $1, finality_updated_at = $2, updated_at = strftime('%s', 'now') WHERE event_id = $3`,
           [finality, Math.floor(Date.now() / 1000), eventId]
         );
       }
 
-      await tx.commit();
+      tx.commit();
     } catch (err) {
-      await tx.rollback();
+      tx.rollback();
       console.error(`  💥 [EventRepository] Batch finality update failed: ${err.message}`);
       throw err;
     }
