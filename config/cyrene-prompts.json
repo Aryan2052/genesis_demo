@@ -1,0 +1,56 @@
+{
+  "analyze_blockchain_event": {
+    "system_prompt": "You are a blockchain security analyst specialized in Ethereum and EVM-compatible chains. Analyze blockchain events and provide risk assessments.",
+    "task_template": "Analyze the following blockchain event:\n\nEvent Type: {eventType}\nContract: {contractAddress}\nBlock: {blockNumber}\nTransaction: {transactionHash}\nArguments: {args}\nChain: {chain}\nRule: {ruleName} (Severity: {severity})\n\nProvide:\n1. A concise summary (max 2 sentences)\n2. Risk level (low/medium/high/critical)\n3. Confidence level (low/medium/high) with percentage\n4. Pattern identification (treasury_movement, cex_operation, flash_loan, exploit, etc.)\n5. Whether this is anomalous behavior\n6. Number of similar events in recent history\n7. Historical behavior assessment\n8. Recommendation (Monitor only, Investigate, Immediate action, etc.)\n9. Suggested actions (list)\n\nRespond in JSON format:\n{\n  \"summary\": \"...\",\n  \"risk\": \"low|medium|high|critical\",\n  \"confidence\": \"low|medium|high\",\n  \"confidence_score\": 0.0-1.0,\n  \"pattern\": \"...\",\n  \"is_anomalous\": true|false,\n  \"similar_events\": number,\n  \"historical_behavior\": \"normal|unusual|suspicious\",\n  \"recommendation\": \"...\",\n  \"suggested_actions\": [\"...\", \"...\"]\n}",
+    "examples": [
+      {
+        "input": {
+          "eventType": "ERC20_TRANSFER",
+          "contractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "args": {
+            "from": "0x28c6c06298d514db089934071355e5743bf21d60",
+            "to": "0x742d35cc6634c0532925a3b844bc454e4438f44e",
+            "value": "100000000000"
+          }
+        },
+        "output": {
+          "summary": "Large USDC transfer from known Binance hot wallet to another exchange address. This is routine CEX operational flow.",
+          "risk": "low",
+          "confidence": "high",
+          "confidence_score": 0.95,
+          "pattern": "cex_operation",
+          "is_anomalous": false,
+          "similar_events": 15,
+          "historical_behavior": "normal",
+          "recommendation": "Monitor only - no action required",
+          "suggested_actions": [
+            "Track for unusual volume spikes",
+            "Verify destination maintains normal operations"
+          ]
+        }
+      }
+    ]
+  },
+  "detect_pattern": {
+    "system_prompt": "You are a blockchain security analyst specialized in detecting multi-transaction attack patterns and MEV strategies.",
+    "task_template": "Analyze the following sequence of blockchain events for patterns:\n\nEvents: {events}\n\nDetect if this represents:\n- Flash loan attack\n- Sandwich attack\n- MEV arbitrage\n- Treasury operations\n- Coordinated exploit\n- Normal user activity\n\nRespond in JSON:\n{\n  \"hasPattern\": true|false,\n  \"pattern\": \"...\",\n  \"description\": \"...\",\n  \"risk\": \"low|medium|high|critical\",\n  \"confidence\": \"low|medium|high\"\n}",
+    "examples": [
+      {
+        "input": {
+          "events": [
+            {"eventType": "FLASH_LOAN", "args": {"amount": "10000000"}},
+            {"eventType": "SWAP", "args": {"amountIn": "10000000"}},
+            {"eventType": "REPAY", "args": {"amount": "10000000"}}
+          ]
+        },
+        "output": {
+          "hasPattern": true,
+          "pattern": "flash_loan_arbitrage",
+          "description": "Flash loan followed by DEX swap and immediate repayment. Classic MEV arbitrage pattern, low risk.",
+          "risk": "low",
+          "confidence": "high"
+        }
+      }
+    ]
+  }
+}

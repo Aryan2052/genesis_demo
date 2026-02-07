@@ -181,3 +181,35 @@ CREATE TABLE IF NOT EXISTS health (
 );
 
 CREATE INDEX IF NOT EXISTS idx_health_chain ON health(chain, checked_at DESC);
+
+-- ============================================================================
+-- TELEGRAM_USERS TABLE
+-- Stores registered Telegram bot users
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS telegram_users (
+  chat_id TEXT PRIMARY KEY,
+  username TEXT,
+  registered_at INTEGER DEFAULT (strftime('%s', 'now'))
+);
+
+-- ============================================================================
+-- TELEGRAM_PREFERENCES TABLE
+-- Stores per-user alert subscription preferences
+-- Users only receive alerts matching their preferences — no spam
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS telegram_preferences (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chat_id TEXT NOT NULL,
+  alert_type INTEGER NOT NULL,         -- 0=LargeTransfer, 1=WhaleMovement, 2=RapidFlow, 3=Custom
+  alert_type_name TEXT NOT NULL,        -- human-readable key
+  threshold INTEGER NOT NULL,           -- minimum amount in raw units (6 decimals)
+  chain TEXT NOT NULL DEFAULT 'localhost',
+  chain_id INTEGER NOT NULL DEFAULT 31337,
+  created_at INTEGER DEFAULT (strftime('%s', 'now')),
+  FOREIGN KEY (chat_id) REFERENCES telegram_users(chat_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tg_prefs_chat ON telegram_preferences(chat_id);
+CREATE INDEX IF NOT EXISTS idx_tg_prefs_type ON telegram_preferences(alert_type);

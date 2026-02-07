@@ -22,7 +22,11 @@ const config = require("./config");
 const { RpcPool, BlockTracker, LogFetcher } = require("./observer");
 const { Decoder, FinalityTracker } = require("./pipeline");
 const { RuleLoader, RuleEvaluator, Aggregator, NoiseFilter } = require("./engine");
+const AnomalyDetector = require("./engine/anomaly-detector");
 const NotificationDispatcher = require("./notify/dispatcher");
+// CyreneAI integration temporarily disabled for demo stability.
+// To re-enable, uncomment the import and initialization below and ensure CYRENE credentials are configured.
+// const CyreneAgent = require("./ai/cyrene-agent");
 const { Database, EventRepository, AlertRepository } = require("./db");
 const metricsCollector = require("./metrics/collector");
 const MetricsServer = require("./metrics/server");
@@ -93,9 +97,18 @@ async function main() {
   const ruleEvaluator = new RuleEvaluator(ruleLoader);
   const aggregator = new Aggregator();
   const noiseFilter = new NoiseFilter();
+  const anomalyDetector = new AnomalyDetector();
 
   // --- 7. Notification Layer (Phase 4) ---
   const notificationDispatcher = new NotificationDispatcher(config);
+
+  // --- 7.5. AI Intelligence Layer (CyreneAI Integration) ---
+  // CyreneAI is currently commented out for the live demo. To enable later
+  // restore the lines below and provide valid `config.cyrene` settings.
+  // const cyreneAgent = new CyreneAgent({
+  //   endpoint: config.cyrene?.endpoint,
+  //   apiKey: config.cyrene?.apiKey,
+  // });
 
   // --- 8. Metrics Dashboard (Phase 5) ---
   const metricsServer = new MetricsServer(config.api.port);
@@ -215,6 +228,33 @@ async function main() {
     }
 
     // ┌─────────────────────────────────────────────┐
+    // │  Feed events to anomaly detector            │
+    // │  for statistical baseline training          │
+    // └─────────────────────────────────────────────┘
+
+    for (const event of events) {
+      // Only record transfer events for statistical analysis
+      if (event.name === 'Transfer' && event.args && event.args.value) {
+        try {
+          const token = event.address.toLowerCase();
+          const amount = event.args.value;
+          
+          // Get token decimals (default to 18 if not in our known list)
+          const knownTokens = {
+            '0xdac17f958d2ee523a2206206994597c13d831ec7': 6, // USDT
+            '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 6, // USDC
+            '0x6b175474e89094c44da98b954eedeac495271d0f': 18, // DAI
+          };
+          const decimals = knownTokens[token] || 18;
+          
+          anomalyDetector.recordTransfer(token, amount, decimals);
+        } catch (err) {
+          // Silently fail - don't block processing for anomaly recording
+        }
+      }
+    }
+
+    // ┌─────────────────────────────────────────────┐
     // │  PHASE 2: Rule Evaluation → Aggregation     │
     // │  Events only become alerts if a rule matches │
     // └─────────────────────────────────────────────┘
@@ -225,6 +265,46 @@ async function main() {
     metricsCollector.recordEventFiltered(events.length - matches.length);
     for (const match of matches) {
       metricsCollector.recordEventMatched();
+    }
+
+    // ┌─────────────────────────────────────────────┐
+    // │  ANOMALY DETECTION (Phase 5+)               │
+    // │  Statistical analysis for outliers          │
+    // └─────────────────────────────────────────────┘
+
+    const anomalies = anomalyDetector.detectBatchAnomalies(events);
+    
+    if (anomalies.length > 0) {
+      console.log(`  🔍 [Anomaly] Detected ${anomalies.length} statistical outlier(s):`);
+      for (const anom of anomalies) {
+        console.log(`     ${anom.message}`);
+        console.log(`     Confidence: ${anom.anomaly.confidence_level} | Z-score: ${anom.anomaly.abs_z_score.toFixed(2)}σ`);
+        
+        // Track metrics
+        metricsCollector.recordAnomalyDetected(
+          anom.anomaly.severity,
+          anom.event.address.toLowerCase()
+        );
+        
+        // Send anomaly alerts through notification system
+        const anomalyAlert = {
+          alert_type: 'anomaly',
+          rule_name: `🔬 Statistical Anomaly Detected`,
+          severity: anom.anomaly.severity,
+          chain: chainConfig.slug,
+          event: anom.event,
+          anomaly: anom.anomaly,
+          message: anom.message,
+          timestamp: Date.now(),
+        };
+        
+        // Dispatch anomaly alert
+        try {
+          await notificationDispatcher.dispatch(anomalyAlert);
+        } catch (err) {
+          console.error(`  💥 [Anomaly Alert] Failed: ${err.message}`);
+        }
+      }
     }
 
     console.log(
@@ -258,14 +338,18 @@ async function main() {
     drainBlockQueue();
   });
 
-  // --- 9. Aggregator → Noise Filter → Notification Dispatcher → Database ---
+  // --- 9. Aggregator → Noise Filter → AI Enhancement → Notification Dispatcher → Database ---
 
   // Instant alerts (high/critical severity bypass aggregation)
+  // CyreneAI temporarily disabled: send original alerts without AI enhancement.
   aggregator.on("alert", async (alert) => {
     if (noiseFilter.shouldPass(alert)) {
+      // AI analysis is disabled for the demo — keep the original alert as-is.
+      const enhancedAlert = alert;
+
       // Dispatch to notification channels (Telegram, Webhook, Console)
       try {
-        await notificationDispatcher.dispatch(alert);
+        await notificationDispatcher.dispatch(enhancedAlert);
         
         // Track metrics for each channel
         if (config.TELEGRAM_BOT_TOKEN) {
@@ -298,9 +382,12 @@ async function main() {
     metricsCollector.recordEventAggregated(alert.event_count || 1);
     
     if (noiseFilter.shouldPassAggregated(alert)) {
+      // CyreneAI pattern detection temporarily disabled: send aggregated alert as-is.
+      const enhancedAlert = alert;
+
       // Dispatch to notification channels (Telegram, Webhook, Console)
       try {
-        await notificationDispatcher.dispatch(alert);
+        await notificationDispatcher.dispatch(enhancedAlert);
         
         // Track metrics for each channel
         if (config.TELEGRAM_BOT_TOKEN) {
@@ -334,13 +421,12 @@ async function main() {
   finalityTracker.on("finality:upgraded", async (data) => {
     // Update finality in database (no notification for finality upgrades - too verbose)
     try {
-      if (!data.events || data.events.length === 0) return;
+      if (!data.event) return;
       
-      const updates = data.events.map(e => ({
-        eventId: e.id,  // Event model uses 'id' not 'eventId'
-        finality: data.newStatus,
-      }));
-      await eventRepo.updateFinalityBatch(updates);
+      // Update single event's finality status
+      await eventRepo.updateFinality(data.event.id, data.to);
+      
+      console.log(`  ⬆️  [Finality] ${data.event.eventType} upgraded: ${data.from} → ${data.to} (Block ${data.event.blockNumber})`);
     } catch (err) {
       console.error(`  💥 [Database] Failed to update finality: ${err.message}`);
     }

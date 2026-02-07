@@ -126,7 +126,7 @@ class EventRepository {
   async updateFinality(eventId, newFinality) {
     const query = `
       UPDATE events
-      SET finality = $1, finality_updated_at = $2, updated_at = NOW()
+      SET finality = $1, finality_updated_at = $2, updated_at = unixepoch('now')
       WHERE event_id = $3
       RETURNING id
     `;

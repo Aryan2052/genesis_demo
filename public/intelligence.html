@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Genesis — Intelligence Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0a0e1a;
+      color: #e0e6f0;
+      min-height: 100vh;
+    }
+    .header {
+      background: linear-gradient(135deg, #0f1629, #1a1040);
+      border-bottom: 1px solid #2a2060;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header h1 {
+      font-size: 1.4rem;
+      background: linear-gradient(135deg, #a855f7, #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header .subtitle { color: #8b8fa8; font-size: 0.85rem; }
+    .nav {
+      display: flex;
+      gap: 12px;
+    }
+    .nav a {
+      color: #8b8fa8;
+      text-decoration: none;
+      font-size: 0.85rem;
+      padding: 6px 14px;
+      border-radius: 8px;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+    .nav a:hover, .nav a.active {
+      color: #a855f7;
+      border-color: #a855f7;
+      background: rgba(168, 85, 247, 0.1);
+    }
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .grid-top {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: linear-gradient(145deg, #111827, #0f1629);
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      transition: border-color 0.3s;
+    }
+    .stat-card:hover { border-color: #a855f7; }
+    .stat-card .value {
+      font-size: 2rem;
+      font-weight: 700;
+      margin: 4px 0;
+    }
+    .stat-card .label {
+      font-size: 0.75rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .stat-card .icon { font-size: 1.2rem; }
+    .stat-card.purple .value { color: #a855f7; }
+    .stat-card.red .value { color: #ef4444; }
+    .stat-card.amber .value { color: #f59e0b; }
+    .stat-card.cyan .value { color: #06b6d4; }
+    .stat-card.emerald .value { color: #10b981; }
+
+    .grid-main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    .panel {
+      background: linear-gradient(145deg, #111827, #0f1629);
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid #1e293b;
+      background: rgba(168, 85, 247, 0.05);
+    }
+    .panel-header h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge-critical { background: #7f1d1d; color: #fca5a5; }
+    .badge-high { background: #78350f; color: #fbbf24; }
+    .badge-medium { background: #1e3a5f; color: #7dd3fc; }
+    .badge-low { background: #14532d; color: #86efac; }
+    .badge-normal { background: #14532d; color: #86efac; }
+    .badge-elevated { background: #78350f; color: #fbbf24; }
+    .badge-suspicious { background: #7f1d1d; color: #fca5a5; }
+    .badge-high_risk { background: #7f1d1d; color: #ff6b6b; border: 1px solid #dc2626; }
+
+    .pattern-list, .wallet-list, .anomaly-list {
+      max-height: 400px;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    .pattern-item, .wallet-item, .anomaly-item {
+      padding: 10px 14px;
+      border-bottom: 1px solid #1e293b;
+      transition: background 0.2s;
+    }
+    .pattern-item:hover, .wallet-item:hover, .anomaly-item:hover {
+      background: rgba(168, 85, 247, 0.05);
+    }
+    .pattern-item:last-child, .wallet-item:last-child, .anomaly-item:last-child {
+      border-bottom: none;
+    }
+    .pattern-type {
+      font-size: 0.75rem;
+      color: #a855f7;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .pattern-desc {
+      font-size: 0.85rem;
+      margin: 4px 0;
+      color: #cbd5e1;
+    }
+    .pattern-meta {
+      font-size: 0.7rem;
+      color: #64748b;
+    }
+
+    .wallet-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .wallet-addr {
+      font-family: 'Courier New', monospace;
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+    .wallet-stats {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      font-size: 0.8rem;
+    }
+    .wallet-stats span { color: #64748b; }
+    .wallet-stats strong { color: #e0e6f0; }
+
+    .risk-bar-container {
+      width: 80px;
+      height: 8px;
+      background: #1e293b;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .risk-bar {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+
+    .grid-full { margin-bottom: 20px; }
+    .grid-bottom {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+    }
+    .risk-dist-bar {
+      display: flex;
+      gap: 4px;
+      margin-top: 12px;
+    }
+    .risk-segment {
+      height: 32px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 600;
+      min-width: 30px;
+      transition: flex 0.5s;
+    }
+    .risk-normal { background: #065f46; color: #6ee7b7; }
+    .risk-elevated { background: #78350f; color: #fde68a; }
+    .risk-suspicious { background: #9a3412; color: #fdba74; }
+    .risk-high_risk { background: #7f1d1d; color: #fca5a5; }
+
+    .pattern-chart {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 16px;
+    }
+    .pattern-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: #1e293b;
+      border-radius: 20px;
+      font-size: 0.75rem;
+    }
+    .pattern-chip .count {
+      background: #a855f7;
+      color: white;
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+
+    .live-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: pulse 1.5s infinite;
+      margin-right: 6px;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .empty-state {
+      padding: 40px;
+      text-align: center;
+      color: #64748b;
+      font-size: 0.85rem;
+    }
+
+    .anomaly-z {
+      font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+    .anomaly-z.critical { color: #ef4444; }
+    .anomaly-z.high { color: #f59e0b; }
+    .anomaly-z.medium { color: #06b6d4; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+    @media (max-width: 1024px) {
+      .grid-top { grid-template-columns: repeat(3, 1fr); }
+      .grid-main { grid-template-columns: 1fr; }
+      .grid-bottom { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>🧠 Genesis Intelligence Dashboard</h1>
+      <div class="subtitle">Cross-Contract Anomaly Detection &amp; Wallet Behavior Profiling</div>
+    </div>
+    <div class="nav">
+      <a href="/">Control Panel</a>
+      <a href="/dashboard">Analytics</a>
+      <a href="/intelligence" class="active">Intelligence</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Top Stats -->
+    <div class="grid-top" id="topStats">
+      <div class="stat-card purple">
+        <div class="icon">👥</div>
+        <div class="value" id="walletsTracked">0</div>
+        <div class="label">Wallets Tracked</div>
+      </div>
+      <div class="stat-card red">
+        <div class="icon">⚠️</div>
+        <div class="value" id="patternsDetected">0</div>
+        <div class="label">Patterns Detected</div>
+      </div>
+      <div class="stat-card amber">
+        <div class="icon">🔥</div>
+        <div class="value" id="highRiskWallets">0</div>
+        <div class="label">High-Risk Wallets</div>
+      </div>
+      <div class="stat-card cyan">
+        <div class="icon">🧪</div>
+        <div class="value" id="anomaliesDetected">0</div>
+        <div class="label">Anomalies Detected</div>
+      </div>
+      <div class="stat-card emerald">
+        <div class="icon">📡</div>
+        <div class="value" id="intelEvents">0</div>
+        <div class="label">Intel Events</div>
+      </div>
+    </div>
+
+    <!-- Main Grid: Patterns + Wallets -->
+    <div class="grid-main">
+      <!-- Live Patterns -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2><span class="live-dot"></span>Live Pattern Detection</h2>
+          <span id="patternCount" class="badge badge-critical">0 patterns</span>
+        </div>
+        <div class="pattern-list" id="patternList">
+          <div class="empty-state">⏳ Waiting for pattern detection...</div>
+        </div>
+      </div>
+
+      <!-- Wallet Risk Leaderboard -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>🏆 Wallet Risk Leaderboard</h2>
+          <span id="walletCount" class="badge badge-medium">0 wallets</span>
+        </div>
+        <div class="wallet-list" id="walletList">
+          <div class="empty-state">⏳ Waiting for wallet activity...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Anomalies (full width) -->
+    <div class="grid-full">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>🧪 Statistical Anomalies (Z-Score Analysis)</h2>
+          <span id="anomalyCount" class="badge badge-high">0 anomalies</span>
+        </div>
+        <div class="anomaly-list" id="anomalyList">
+          <div class="empty-state">⏳ Building statistical baseline... anomalies detected after 10+ data points</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Grid: Risk Distribution + Pattern Breakdown + Architecture -->
+    <div class="grid-bottom">
+      <!-- Risk Distribution -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>📊 Risk Distribution</h2>
+        </div>
+        <div style="padding: 16px;">
+          <div class="risk-dist-bar" id="riskDistBar">
+            <div class="risk-segment risk-normal" style="flex:1">—</div>
+          </div>
+          <div style="margin-top: 12px; font-size: 0.75rem; color: #64748b;">
+            <div style="display:flex; gap: 16px; flex-wrap: wrap;">
+              <span>🟢 Normal (0-25)</span>
+              <span>🟡 Elevated (26-50)</span>
+              <span>🟠 Suspicious (51-75)</span>
+              <span>🔴 High Risk (76-100)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pattern Breakdown -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>🔍 Pattern Breakdown</h2>
+        </div>
+        <div class="pattern-chart" id="patternBreakdown">
+          <div class="empty-state">No patterns yet</div>
+        </div>
+      </div>
+
+      <!-- Architecture Showcase -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>⚡ How It Works</h2>
+        </div>
+        <div style="padding: 16px; font-size: 0.78rem; color: #94a3b8; line-height: 1.6;">
+          <p><strong style="color:#a855f7">Cross-Contract Correlation:</strong> Tracks wallets across ALL contracts (Vault, Pool, Governance) to detect invisible patterns.</p>
+          <p style="margin-top:8px;"><strong style="color:#f59e0b">Z-Score Anomaly Detection:</strong> Statistical analysis (μ ± σ) flags transfers that deviate significantly from historical norms.</p>
+          <p style="margin-top:8px;"><strong style="color:#ef4444">Pattern Engine:</strong> Real-time detection of wash trading (deposit→swap→withdraw), flash patterns, velocity spikes, and whale clustering.</p>
+          <p style="margin-top:8px;"><strong style="color:#10b981">Dynamic Risk Scoring:</strong> Each wallet gets a 0-100 risk score based on behavior, updated on every transaction.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const BASE = window.location.origin;
+
+    // ── Fetch intelligence data ──
+    async function fetchIntelligence() {
+      try {
+        const [statsRes, walletsRes, patternsRes, anomaliesRes] = await Promise.all([
+          fetch(`${BASE}/api/intelligence/stats`),
+          fetch(`${BASE}/api/intelligence/wallets`),
+          fetch(`${BASE}/api/intelligence/patterns`),
+          fetch(`${BASE}/api/intelligence/anomalies`),
+        ]);
+        const stats = await statsRes.json();
+        const wallets = await walletsRes.json();
+        const patterns = await patternsRes.json();
+        const anomalies = await anomaliesRes.json();
+
+        updateTopStats(stats, anomalies);
+        updatePatterns(patterns);
+        updateWallets(wallets);
+        updateAnomalies(anomalies);
+        updateRiskDistribution(stats.walletProfiler?.riskDistribution || {});
+        updatePatternBreakdown(patterns.breakdown || {});
+      } catch (err) {
+        console.error('Fetch error:', err);
+      }
+    }
+
+    function updateTopStats(stats, anomalies) {
+      const wp = stats.walletProfiler || {};
+      document.getElementById('walletsTracked').textContent = wp.totalWalletsTracked || 0;
+      document.getElementById('patternsDetected').textContent = wp.totalPatternsDetected || 0;
+      document.getElementById('highRiskWallets').textContent = wp.highRiskWallets || 0;
+      document.getElementById('anomaliesDetected').textContent = anomalies.count || 0;
+      document.getElementById('intelEvents').textContent = stats.intelligenceEvents || 0;
+    }
+
+    function updatePatterns(data) {
+      const list = document.getElementById('patternList');
+      const patterns = data.patterns || [];
+      document.getElementById('patternCount').textContent = `${patterns.length} patterns`;
+
+      if (patterns.length === 0) {
+        list.innerHTML = '<div class="empty-state">⏳ Waiting for pattern detection...</div>';
+        return;
+      }
+
+      list.innerHTML = patterns.map(p => {
+        const emoji = { velocity_anomaly: '⚡', flash_pattern: '💥', wash_trading: '🔄', large_movement: '🐋', cross_contract_correlation: '🔗' }[p.type] || '🔍';
+        const time = new Date(p.timestamp).toLocaleTimeString();
+        return `
+          <div class="pattern-item">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span class="pattern-type">${emoji} ${p.type.replace(/_/g, ' ')}</span>
+              <span class="badge badge-${p.severity}">${p.severity}</span>
+            </div>
+            <div class="pattern-desc">${p.description}</div>
+            <div class="pattern-meta">
+              Wallet: ${shortAddr(p.wallet)} · ${time}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateWallets(data) {
+      const list = document.getElementById('walletList');
+      const wallets = data.leaderboard || [];
+      document.getElementById('walletCount').textContent = `${wallets.length} wallets`;
+
+      if (wallets.length === 0) {
+        list.innerHTML = '<div class="empty-state">⏳ Waiting for wallet activity...</div>';
+        return;
+      }
+
+      list.innerHTML = wallets.map(w => {
+        const barColor = w.riskScore <= 25 ? '#10b981' : w.riskScore <= 50 ? '#f59e0b' : w.riskScore <= 75 ? '#f97316' : '#ef4444';
+        return `
+          <div class="wallet-item">
+            <div>
+              <div class="wallet-addr">${shortAddr(w.address)}</div>
+              <div style="font-size:0.7rem; color:#64748b; margin-top:2px;">${w.contractsTouched.length} contract${w.contractsTouched.length!==1?'s':''} · ${w.totalTxCount} txs</div>
+            </div>
+            <div class="wallet-stats">
+              <div>
+                <span>Vol:</span> <strong>$${fmtAmount(w.totalVolume)}</strong>
+              </div>
+              <div style="text-align:right;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <div class="risk-bar-container">
+                    <div class="risk-bar" style="width:${w.riskScore}%; background:${barColor};"></div>
+                  </div>
+                  <span class="badge badge-${w.riskLevel}">${w.riskScore}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateAnomalies(data) {
+      const list = document.getElementById('anomalyList');
+      const anomalies = data.anomalies || [];
+      document.getElementById('anomalyCount').textContent = `${anomalies.length} anomalies`;
+
+      if (anomalies.length === 0) {
+        list.innerHTML = '<div class="empty-state">⏳ Building statistical baseline... anomalies appear after 10+ data points</div>';
+        return;
+      }
+
+      list.innerHTML = anomalies.map(a => {
+        const zClass = Math.abs(a.z_score) >= 3 ? 'critical' : Math.abs(a.z_score) >= 2 ? 'high' : 'medium';
+        const time = new Date(a.timestamp).toLocaleTimeString();
+        return `
+          <div class="anomaly-item" style="display:flex; align-items:center; gap:16px;">
+            <div class="anomaly-z ${zClass}">${a.z_score > 0 ? '+' : ''}${a.z_score.toFixed(2)}σ</div>
+            <div style="flex:1;">
+              <div style="font-size:0.85rem; color:#cbd5e1;">${a.description}</div>
+              <div style="font-size:0.7rem; color:#64748b;">
+                ${a.token || 'gUSD'} · Confidence: ${a.confidence_level} · Event: ${a.event || '—'} · ${time}
+              </div>
+            </div>
+            <span class="badge badge-${a.severity}">${a.severity}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateRiskDistribution(dist) {
+      const bar = document.getElementById('riskDistBar');
+      const total = (dist.low || 0) + (dist.elevated || 0) + (dist.suspicious || 0) + (dist.high_risk || 0);
+      if (total === 0) {
+        bar.innerHTML = '<div class="risk-segment risk-normal" style="flex:1">No data</div>';
+        return;
+      }
+      bar.innerHTML = [
+        { key: 'low', label: 'Normal', cls: 'risk-normal', val: dist.low || 0 },
+        { key: 'elevated', label: 'Elevated', cls: 'risk-elevated', val: dist.elevated || 0 },
+        { key: 'suspicious', label: 'Suspicious', cls: 'risk-suspicious', val: dist.suspicious || 0 },
+        { key: 'high_risk', label: 'High Risk', cls: 'risk-high_risk', val: dist.high_risk || 0 },
+      ].filter(s => s.val > 0).map(s => 
+        `<div class="risk-segment ${s.cls}" style="flex:${s.val}">${s.val} ${s.label}</div>`
+      ).join('');
+    }
+
+    function updatePatternBreakdown(breakdown) {
+      const container = document.getElementById('patternBreakdown');
+      const entries = Object.entries(breakdown);
+      if (entries.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="width:100%">No patterns yet</div>';
+        return;
+      }
+      const emojis = {
+        velocity_anomaly: '⚡', flash_pattern: '💥', wash_trading: '🔄',
+        large_movement: '🐋', cross_contract_correlation: '🔗'
+      };
+      container.innerHTML = entries.map(([type, count]) =>
+        `<div class="pattern-chip">${emojis[type] || '🔍'} ${type.replace(/_/g, ' ')} <span class="count">${count}</span></div>`
+      ).join('');
+    }
+
+    function shortAddr(addr) {
+      if (!addr) return '—';
+      return addr.slice(0, 6) + '…' + addr.slice(-4);
+    }
+
+    function fmtAmount(n) {
+      if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+      return n.toFixed(2);
+    }
+
+    // ── SSE for real-time updates ──
+    const evtSource = new EventSource(`${BASE}/api/events`);
+    evtSource.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'intelligence_pattern' || data.type === 'intelligence_anomaly') {
+          fetchIntelligence(); // refresh on intelligence events
+        }
+      } catch {}
+    };
+
+    // Poll every 3 seconds
+    setInterval(fetchIntelligence, 3000);
+    fetchIntelligence();
+  </script>
+</body>
+</html>

@@ -47,6 +47,13 @@ Pre-configured rules for:
 - Protocol pause events (security incidents)
 - Dangerous token approvals ($1M+)
 
+### 6. **Statistical Anomaly Detection** 🔬
+Machine learning-powered z-score analysis:
+- **Adaptive thresholds** — learns from historical patterns
+- **Market-aware** — adjusts to bull/bear cycles
+- **Confidence scoring** — 1.5σ (medium) to 3.0σ (critical)
+- **No manual tuning** — self-training on live data
+
 ---
 
 ## 📊 Monitored On-Chain Activities
@@ -61,6 +68,26 @@ Pre-configured rules for:
 | 🌊 Flash Loan | MEV/arbitrage activity | ≥ $100,000 | Medium |
 | ⛔ Dangerous Approval | Large token approvals | ≥ $1,000,000 | Critical |
 | 🔴 Protocol Pause | Emergency protocol halts | Any | Critical |
+| 🔬 **Statistical Anomalies** | **Z-score outlier detection** | **≥ 1.5σ** | **Medium-Critical** |
+
+### 🆕 Z-Score Anomaly Detection
+
+Genesis now includes **advanced statistical analysis** to detect unusual transfers based on historical patterns:
+
+- **Adaptive**: No hardcoded thresholds — learns from recent transfer patterns
+- **Market-Aware**: Automatically adjusts to bull/bear market conditions
+- **Confidence Levels**: 
+  - 🔴 **Critical** (3σ): 99.7% confidence — 1 in 370 transfers
+  - 🟠 **High** (2σ): 95.4% confidence — 1 in 22 transfers
+  - 🟡 **Medium** (1.5σ): 86.6% confidence — 1 in 7 transfers
+
+**Example Alert:**
+```
+🔍 Transfer of 5,000,000 USDT is 3.2σ above the 7-day average of $150,000
+   Confidence: 99.7% | Z-score: 3.24σ
+```
+
+📖 **Full Documentation**: [`docs/ANOMALY_DETECTION.md`](./docs/ANOMALY_DETECTION.md)
 
 ---
 

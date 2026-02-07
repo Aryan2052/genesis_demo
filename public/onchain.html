@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Genesis — On-Chain Control Panel</title>
+  <style>
+    :root {
+      --bg: #0a0e17;
+      --card: #111827;
+      --border: #1e293b;
+      --accent: #3b82f6;
+      --accent2: #8b5cf6;
+      --green: #10b981;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .header {
+      background: linear-gradient(135deg, #1e1b4b, #0f172a);
+      border-bottom: 1px solid var(--border);
+      padding: 1.5rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header h1 { font-size: 1.4rem; }
+    .header h1 span { color: var(--accent); }
+    .status-badge {
+      padding: 0.3rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .status-live { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid var(--green); }
+    .status-off { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid var(--red); }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.2rem; margin-bottom: 2rem; }
+
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.2rem;
+      transition: transform 0.2s;
+    }
+    .stat-card:hover { transform: translateY(-2px); }
+    .stat-card .label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }
+    .stat-card .value { font-size: 2rem; font-weight: 700; margin: 0.3rem 0; }
+    .stat-card .sub { color: var(--muted); font-size: 0.85rem; }
+
+    .section { margin-bottom: 2rem; }
+    .section h2 {
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* Threshold form */
+    .threshold-form {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr auto;
+      gap: 1rem;
+      align-items: end;
+      margin-bottom: 1rem;
+    }
+    .form-group label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-bottom: 0.3rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .form-group input, .form-group select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.6rem 0.8rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .btn {
+      padding: 0.6rem 1.2rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-danger { background: var(--red); color: white; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-sm { padding: 0.35rem 0.7rem; font-size: 0.75rem; }
+
+    /* Rules table */
+    .rules-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .rules-table th {
+      background: rgba(59,130,246,0.1);
+      padding: 0.8rem 1rem;
+      text-align: left;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+    }
+    .rules-table td {
+      padding: 0.7rem 1rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .rules-table tr:hover { background: rgba(255,255,255,0.02); }
+    .severity-badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .sev-low { background: rgba(16,185,129,0.15); color: var(--green); }
+    .sev-medium { background: rgba(245,158,11,0.15); color: var(--yellow); }
+    .sev-high { background: rgba(239,68,68,0.15); color: var(--red); }
+    .sev-critical { background: rgba(239,68,68,0.3); color: #fca5a5; }
+
+    /* Event feed */
+    .event-feed {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .event-item {
+      padding: 0.8rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+      display: flex;
+      gap: 0.8rem;
+      align-items: flex-start;
+    }
+    .event-item:last-child { border-bottom: none; }
+    .event-icon { font-size: 1.2rem; flex-shrink: 0; }
+    .event-body { flex: 1; }
+    .event-title { font-weight: 600; margin-bottom: 0.2rem; }
+    .event-desc { color: var(--muted); font-size: 0.8rem; line-height: 1.4; }
+    .event-time { color: var(--muted); font-size: 0.7rem; white-space: nowrap; }
+    .event-item.alert { background: rgba(239,68,68,0.05); border-left: 3px solid var(--red); }
+
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .pulse { animation: pulse 2s infinite; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🧬 <span>Genesis</span> — On-Chain Control Panel</h1>
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <span id="chainBadge" style="color: var(--green); font-size: 0.8rem; padding: 0.3rem 0.8rem; border: 1px solid var(--green); border-radius: 8px; opacity: 0.8;">⛓️ Loading...</span>
+      <a href="/dashboard" style="color: var(--muted); text-decoration: none; font-size: 0.85rem; padding: 0.4rem 0.8rem; border: 1px solid var(--border); border-radius: 8px;">📊 Analytics</a>
+      <a href="/intelligence" style="color: var(--muted); text-decoration: none; font-size: 0.85rem; padding: 0.4rem 0.8rem; border: 1px solid var(--border); border-radius: 8px;">🧠 Intelligence</a>
+      <span class="status-badge status-live pulse" id="statusBadge">● LISTENING</span>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Stats -->
+    <div class="grid">
+      <div class="stat-card">
+        <div class="label">Events Received</div>
+        <div class="value" id="totalEvents">0</div>
+        <div class="sub">From smart contracts</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Deposits</div>
+        <div class="value" id="deposits">0</div>
+        <div class="sub">Inbound flows</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Withdrawals</div>
+        <div class="value" id="withdrawals">0</div>
+        <div class="sub">Outbound flows</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Large Movements</div>
+        <div class="value" style="color: var(--red);" id="largeMovements">0</div>
+        <div class="sub">Threshold exceeded</div>
+      </div>
+    </div>
+
+    <!-- Chain & Threshold Configuration -->
+    <div class="section">
+      <h2>⚙️ Custom Alert Thresholds (Stored On-Chain)</h2>
+
+      <!-- Chain Info Banner -->
+      <div id="chainInfoBanner" style="background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.3); border-radius: 10px; padding: 0.8rem 1.2rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+        <div>
+          <span style="font-size: 0.9rem; font-weight: 600;">⛓️ Monitoring Chain:</span>
+          <span id="chainNameDisplay" style="color: var(--green); font-weight: 700; font-size: 1rem; margin-left: 0.3rem;">Loading...</span>
+          <span id="chainIdDisplay" style="color: var(--muted); font-size: 0.8rem; margin-left: 0.3rem;">(ID: —)</span>
+        </div>
+        <div style="color: var(--muted); font-size: 0.75rem;">
+          <span id="chainRpcDisplay">RPC: —</span>
+        </div>
+      </div>
+
+      <div class="threshold-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Monitored Chain</label>
+            <select id="chainSelect" onchange="onChainSelect()">
+              <option value="localhost" data-rpc="http://127.0.0.1:8545" data-id="31337">🏠 Localhost (Hardhat)</option>
+              <option value="ethereum" data-rpc="https://mainnet.infura.io/v3/" data-id="1">Ⓔ Ethereum Mainnet</option>
+              <option value="polygon" data-rpc="https://polygon-rpc.com" data-id="137">🟣 Polygon</option>
+              <option value="arbitrum" data-rpc="https://arb1.arbitrum.io/rpc" data-id="42161">🔵 Arbitrum One</option>
+              <option value="bsc" data-rpc="https://bsc-dataseed.binance.org" data-id="56">🟡 BNB Smart Chain</option>
+              <option value="base" data-rpc="https://mainnet.base.org" data-id="8453">🔷 Base</option>
+              <option value="optimism" data-rpc="https://mainnet.optimism.io" data-id="10">🔴 Optimism</option>
+              <option value="avalanche" data-rpc="https://api.avax.network/ext/bc/C/rpc" data-id="43114">🔺 Avalanche</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Alert Type</label>
+            <select id="alertType" onchange="onAlertTypeChange()">
+              <option value="0">🚨 Large Transfer</option>
+              <option value="1">🐋 Whale Movement</option>
+              <option value="2">⚡ Rapid Flow</option>
+              <option value="3">🔧 Custom</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Threshold ($)</label>
+            <input type="number" id="thresholdAmount" placeholder="100000" value="100000" />
+          </div>
+          <div class="form-group">
+            <label>Cooldown (sec)</label>
+            <input type="number" id="cooldownSec" placeholder="120" value="120" />
+          </div>
+          <button class="btn btn-primary" onclick="setThreshold()">Set On-Chain</button>
+        </div>
+        <div class="form-row" style="grid-template-columns: 1fr auto;">
+          <div class="form-group">
+            <label>Description</label>
+            <input type="text" id="description" placeholder="Alert me when transfers exceed $100K" />
+          </div>
+        </div>
+
+        <!-- Suggested thresholds based on alert type -->
+        <div id="alertSuggestions" style="margin-top: 0.5rem; padding: 0.6rem 1rem; background: rgba(59,130,246,0.06); border-radius: 8px; font-size: 0.78rem; color: var(--muted);">
+          💡 <strong>Large Transfer</strong>: Triggers when a single deposit or withdrawal exceeds the threshold. Suggested: $50K–$500K.
+        </div>
+
+        <div style="color: var(--muted); font-size: 0.8rem; margin-top: 0.5rem;">
+          ⛓️ Thresholds are written to the ThresholdEngine smart contract — immutable and auditable.
+        </div>
+      </div>
+
+      <!-- Active Rules Table -->
+      <table class="rules-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Type</th>
+            <th>Threshold</th>
+            <th>Cooldown</th>
+            <th>Description</th>
+            <th>Source</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="rulesBody">
+          <tr><td colspan="7" style="color: var(--muted); text-align: center;">Loading thresholds from ThresholdEngine smart contract...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Telegram Bot Controls -->
+    <div class="section" style="border-left: 3px solid var(--accent);">
+      <h2>🤖 Telegram Alert Bot</h2>
+      <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 1rem;">
+        Users interact with the Telegram bot to set personal alert preferences. Only matching alerts are delivered — zero spam.
+      </p>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+        <div class="stat-card">
+          <div class="stat-value" id="botUsers">0</div>
+          <div class="stat-label">Registered Users</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="botSubscriptions">0</div>
+          <div class="stat-label">Alert Subscriptions</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+        <button class="btn btn-primary" onclick="sendTelegramReport()">📊 Send Dashboard Report to Telegram</button>
+        <span id="reportStatus" style="color: var(--muted); font-size: 0.85rem;"></span>
+      </div>
+      <div style="margin-top: 1rem; padding: 0.75rem 1rem; background: rgba(59,130,246,0.06); border-radius: 8px; font-size: 0.8rem; color: var(--muted);">
+        <strong>Bot is button-driven!</strong> User types <code>/start</code> → Bot sends inline buttons: <code>[🔔 Choose Alerts]</code> → User picks alert type → picks threshold → ✅ Subscribed! No text commands needed.
+      </div>
+    </div>
+
+    <!-- Live Event Feed -->
+    <div class="section">
+      <h2>📡 Live Event Feed (from Smart Contracts)</h2>
+      <div class="event-feed" id="eventFeed">
+        <div class="event-item">
+          <div class="event-icon">⏳</div>
+          <div class="event-body">
+            <div class="event-title">Waiting for events...</div>
+            <div class="event-desc">Run the demo script to see live on-chain events appear here</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Insights -->
+    <div class="section">
+      <h2>🧠 AI-Powered Insights (CyreneAI)</h2>
+      <div class="event-feed" id="insightFeed">
+        <div class="event-item">
+          <div class="event-icon">🧠</div>
+          <div class="event-body">
+            <div class="event-title">Insights will appear here</div>
+            <div class="event-desc">Raw blockchain data is transformed into human-readable analysis</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Stats
+    let stats = { totalEvents: 0, deposits: 0, withdrawals: 0, largeMovements: 0 };
+    let currentChain = { name: 'localhost', id: 31337, rpcUrl: 'http://127.0.0.1:8545' };
+
+    // ── Alert type suggestions per type ──
+    const alertSuggestions = {
+      0: '💡 <strong>Large Transfer</strong>: Triggers when a single deposit or withdrawal exceeds the threshold. Suggested: $50K–$500K.',
+      1: '🐋 <strong>Whale Movement</strong>: Tracks whale wallets moving significant amounts. Suggested: $250K–$5M.',
+      2: '⚡ <strong>Rapid Flow</strong>: Detects rapid in/out flows within a short window (uses cooldown). Suggested: $10K–$100K with 30–120s cooldown.',
+      3: '🔧 <strong>Custom</strong>: Define your own rule. Set any threshold, cooldown, and description.'
+    };
+
+    function onAlertTypeChange() {
+      const type = document.getElementById('alertType').value;
+      document.getElementById('alertSuggestions').innerHTML = alertSuggestions[type] || '';
+      // Set sensible defaults per type
+      const defaults = { 0: [100000, 120], 1: [500000, 300], 2: [50000, 60], 3: [100000, 120] };
+      const [amt, cd] = defaults[type] || [100000, 120];
+      document.getElementById('thresholdAmount').value = amt;
+      document.getElementById('cooldownSec').value = cd;
+    }
+
+    function onChainSelect() {
+      const sel = document.getElementById('chainSelect');
+      const opt = sel.options[sel.selectedIndex];
+      const chainName = opt.value;
+      const rpcUrl = opt.dataset.rpc;
+      const chainId = opt.dataset.id;
+      // Show info — in production this would restart the listener with the new RPC
+      document.getElementById('chainInfoBanner').style.background = chainName === currentChain.name
+        ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)';
+      if (chainName !== currentChain.name) {
+        document.getElementById('chainInfoBanner').querySelector('div:last-child').innerHTML =
+          `<span style="color: var(--yellow);">⚠️ To switch chains, update RPC_URL=${rpcUrl} in .env and restart the server</span>`;
+      } else {
+        document.getElementById('chainRpcDisplay').textContent = `RPC: ${currentChain.rpcUrl}`;
+        document.getElementById('chainInfoBanner').style.background = 'rgba(16,185,129,0.08)';
+      }
+    }
+
+    function updateChainInfo(chain) {
+      if (!chain) return;
+      currentChain = chain;
+      document.getElementById('chainBadge').textContent = `⛓️ ${chain.name} (#${chain.id})`;
+      document.getElementById('chainNameDisplay').textContent = chain.name;
+      document.getElementById('chainIdDisplay').textContent = `(ID: ${chain.id})`;
+      document.getElementById('chainRpcDisplay').textContent = `RPC: ${chain.rpcUrl}`;
+      // Auto-select the matching chain in dropdown
+      const sel = document.getElementById('chainSelect');
+      for (let i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === chain.name) {
+          sel.selectedIndex = i;
+          break;
+        }
+      }
+    }
+    let userRuleCount = 4;
+
+    // SSE connection to Genesis backend
+    let evtSource;
+    function connectSSE() {
+      evtSource = new EventSource('/api/events');
+      evtSource.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          handleEvent(data);
+        } catch (err) {}
+      };
+      evtSource.onerror = () => {
+        document.getElementById('statusBadge').className = 'status-badge status-off';
+        document.getElementById('statusBadge').textContent = '● DISCONNECTED';
+        setTimeout(connectSSE, 3000);
+      };
+      evtSource.onopen = () => {
+        document.getElementById('statusBadge').className = 'status-badge status-live pulse';
+        document.getElementById('statusBadge').textContent = '● LISTENING';
+      };
+    }
+
+    // Poll for stats periodically
+    async function pollStats() {
+      try {
+        const res = await fetch('/api/onchain-stats');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.eventsReceived !== undefined) {
+            stats.totalEvents = data.eventsReceived;
+            stats.deposits = data.depositsDetected;
+            stats.withdrawals = data.withdrawalsDetected;
+            stats.largeMovements = data.largeMovements;
+            updateUI();
+          }
+          // Show chain info in badge and banner
+          if (data.chain) {
+            updateChainInfo(data.chain);
+            document.getElementById('statusBadge').title = `Chain: ${data.chain.name} (${data.chain.id})`;
+          }
+        }
+      } catch (e) {}
+    }
+
+    // ── Fetch live thresholds from ThresholdEngine smart contract ──
+    async function pollThresholds() {
+      try {
+        const res = await fetch('/api/thresholds');
+        if (!res.ok) return;
+        const data = await res.json();
+        renderThresholds(data.thresholds || []);
+      } catch (e) {}
+    }
+
+    function renderThresholds(thresholds) {
+      const tbody = document.getElementById('rulesBody');
+      const types = ['Large Transfer', 'Whale Movement', 'Rapid Flow', 'Custom'];
+
+      if (thresholds.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="color: var(--muted); text-align: center;">No thresholds set yet — use the form above to create one on-chain!</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = thresholds.map((t, i) => {
+        const isGlobal = t.source === 'global';
+        const sourceBadge = isGlobal
+          ? '<span class="severity-badge sev-medium">Global</span>'
+          : `<span class="severity-badge sev-low">User ${t.user ? t.user.slice(0,6) + '...' : ''}</span>`;
+        const removeBtn = !isGlobal
+          ? `<button class="btn btn-danger btn-sm" onclick="removeThreshold(${t.index})">Remove</button>`
+          : '—';
+        return `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${types[t.alertType] || 'Custom'}</td>
+            <td>$${(t.threshold / 1e6).toLocaleString()}</td>
+            <td>${t.cooldownSec}s</td>
+            <td>${t.description}</td>
+            <td>${sourceBadge}</td>
+            <td>${removeBtn}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function handleEvent(data) {
+      stats.totalEvents++;
+      if (data.type === 'deposit') stats.deposits++;
+      if (data.type === 'withdrawal') stats.withdrawals++;
+      if (data.type === 'large_movement' || data.type === 'user_threshold_triggered') stats.largeMovements++;
+      updateUI();
+      addEventToFeed(data);
+      if (data.insight) addInsight(data.insight);
+      // Refresh thresholds when a threshold change event comes in
+      if (data.type === 'threshold_change') pollThresholds();
+    }
+
+    function updateUI() {
+      document.getElementById('totalEvents').textContent = stats.totalEvents;
+      document.getElementById('deposits').textContent = stats.deposits;
+      document.getElementById('withdrawals').textContent = stats.withdrawals;
+      document.getElementById('largeMovements').textContent = stats.largeMovements;
+    }
+
+    function addEventToFeed(data) {
+      const feed = document.getElementById('eventFeed');
+      const icons = {
+        deposit: '💰', withdrawal: '📤', internal_transfer: '🔄',
+        large_movement: '🚨', emergency: '🛑', erc20_transfer: '💸',
+        threshold_change: '⚙️', user_threshold_triggered: '🔔'
+      };
+      const isAlert = ['large_movement', 'emergency', 'user_threshold_triggered'].includes(data.type);
+      const item = document.createElement('div');
+      item.className = 'event-item' + (isAlert ? ' alert' : '');
+      item.innerHTML = `
+        <div class="event-icon">${icons[data.type] || '📋'}</div>
+        <div class="event-body">
+          <div class="event-title">${data.type.replace(/_/g, ' ').toUpperCase()}${data.amount ? ' — $' + data.amount : ''}</div>
+          <div class="event-desc">${data.user ? 'Wallet: ' + data.user.slice(0,10) + '...' : ''} ${data.txHash ? '| Tx: ' + data.txHash.slice(0,14) + '...' : ''} | Block #${data.blockNumber || '?'}${data.thresholdDescription ? ' | Rule: ' + data.thresholdDescription : ''}</div>
+        </div>
+        <div class="event-time">${new Date().toLocaleTimeString()}</div>
+      `;
+      feed.insertBefore(item, feed.firstChild);
+      while (feed.children.length > 20) feed.removeChild(feed.lastChild);
+    }
+
+    function addInsight(insight) {
+      const feed = document.getElementById('insightFeed');
+      const item = document.createElement('div');
+      item.className = 'event-item' + (insight.severity === 'critical' ? ' alert' : '');
+      item.innerHTML = `
+        <div class="event-icon">${insight.aiPowered ? '🧠' : '📊'}</div>
+        <div class="event-body">
+          <div class="event-title">${insight.title}</div>
+          <div class="event-desc">${insight.summary}</div>
+          <div class="event-desc" style="margin-top:0.3rem;color:var(--accent);">💡 ${insight.recommendation}</div>
+        </div>
+        <div class="event-time">${new Date().toLocaleTimeString()}</div>
+      `;
+      feed.insertBefore(item, feed.firstChild);
+      while (feed.children.length > 15) feed.removeChild(feed.lastChild);
+    }
+
+    // ── Set threshold: writes to ThresholdEngine smart contract on-chain ──
+    async function setThreshold() {
+      const alertType = document.getElementById('alertType').value;
+      const amount = document.getElementById('thresholdAmount').value;
+      const cooldown = document.getElementById('cooldownSec').value;
+      const desc = document.getElementById('description').value || `Custom threshold: $${Number(amount).toLocaleString()}`;
+      const types = ['Large Transfer', 'Whale Movement', 'Rapid Flow', 'Custom'];
+
+      try {
+        const res = await fetch('/api/threshold', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ alertType, threshold: amount, cooldown, description: desc })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          alert(`✅ Threshold written to blockchain!\n\n${types[alertType]} > $${Number(amount).toLocaleString()}\nTx: ${data.txHash}\nBlock: ${data.blockNumber}`);
+          // Refresh the table from on-chain data
+          setTimeout(pollThresholds, 1000);
+        } else {
+          alert(`❌ Failed: ${data.error}`);
+        }
+      } catch (err) {
+        alert(`❌ Network error: ${err.message}`);
+      }
+    }
+
+    // ── Remove threshold: calls removeThreshold on-chain ──
+    async function removeThreshold(ruleIndex) {
+      if (!confirm(`Remove threshold rule #${ruleIndex}? This will disable it on-chain.`)) return;
+      try {
+        const res = await fetch('/api/threshold', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ruleIndex })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(`✅ Threshold removed on-chain!\nTx: ${data.txHash}`);
+          setTimeout(pollThresholds, 1000);
+        } else {
+          alert(`❌ Failed: ${data.error}`);
+        }
+      } catch (err) {
+        alert(`❌ Error: ${err.message}`);
+      }
+    }
+
+    // ── Telegram Bot status polling ──
+    async function pollBotStatus() {
+      try {
+        const res = await fetch('/api/telegram/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        document.getElementById('botUsers').textContent = data.totalUsers || 0;
+        document.getElementById('botSubscriptions').textContent = data.totalPreferences || 0;
+      } catch (e) {}
+    }
+
+    async function sendTelegramReport() {
+      const statusEl = document.getElementById('reportStatus');
+      statusEl.textContent = '📤 Sending...';
+      try {
+        const res = await fetch('/api/telegram/report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const data = await res.json();
+        if (data.success) {
+          statusEl.textContent = '✅ Report sent to Telegram!';
+          statusEl.style.color = 'var(--green)';
+        } else {
+          statusEl.textContent = `❌ ${data.error}`;
+          statusEl.style.color = 'var(--red)';
+        }
+      } catch (err) {
+        statusEl.textContent = `❌ ${err.message}`;
+        statusEl.style.color = 'var(--red)';
+      }
+      setTimeout(() => { statusEl.textContent = ''; statusEl.style.color = 'var(--muted)'; }, 5000);
+    }
+
+    // Init
+    try { connectSSE(); } catch(e) {}
+    setInterval(pollStats, 2000);
+    setInterval(pollThresholds, 5000);
+    setInterval(pollBotStatus, 5000);
+    pollStats();
+    pollThresholds();
+    pollBotStatus();
+    onAlertTypeChange(); // Show initial suggestion for default alert type
+  </script>
+</body>
+</html>

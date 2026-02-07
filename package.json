@@ -6,6 +6,12 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "node --watch src/app.js",
+    "node": "npx hardhat node",
+    "deploy": "npx hardhat run scripts/deploy.js --network localhost",
+    "compile": "npx hardhat compile",
+    "listen": "node src/contract-listener.js",
+    "onchain": "node src/onchain-server.js",
+    "demo": "node scripts/demo-onchain.js",
     "test": "echo \"Tests coming in Phase 2\" && exit 0"
   },
   "keywords": [
@@ -18,12 +24,20 @@
   "author": "Aryan2052",
   "license": "ISC",
   "dependencies": {
+    "@langchain/core": "^1.1.19",
+    "@langchain/google-genai": "^2.1.15",
     "axios": "^1.13.4",
     "cors": "^2.8.6",
     "dotenv": "^16.6.1",
     "ethers": "^6.16.0",
     "express": "^5.2.1",
+    "langchain": "^1.2.18",
     "node-telegram-bot-api": "^0.67.0",
     "sql.js": "^1.13.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "^5.4.0",
+    "hardhat": "^2.28.4"
   }
 }

@@ -48,6 +48,13 @@ class MetricsCollector {
         alerts_deduplicated: 0,
       },
       
+      // Anomaly Detection
+      anomalies: {
+        total_detected: 0,
+        by_severity: { critical: 0, high: 0, medium: 0 },
+        by_token: {}, // { "0xdac...ec7": 5, ... }
+      },
+      
       // Timestamps
       started_at: Date.now(),
       last_updated: Date.now(),
@@ -150,6 +157,24 @@ class MetricsCollector {
   }
 
   // -------------------------------------------------------------------------
+  // Anomaly Detection Metrics
+  // -------------------------------------------------------------------------
+
+  recordAnomalyDetected(severity, token) {
+    this.metrics.anomalies.total_detected++;
+    
+    if (severity && this.metrics.anomalies.by_severity[severity] !== undefined) {
+      this.metrics.anomalies.by_severity[severity]++;
+    }
+    
+    if (token) {
+      this.metrics.anomalies.by_token[token] = (this.metrics.anomalies.by_token[token] || 0) + 1;
+    }
+    
+    this._update();
+  }
+
+  // -------------------------------------------------------------------------
   // Computed Metrics
   // -------------------------------------------------------------------------
 
@@ -231,11 +256,17 @@ class MetricsCollector {
           ? (this.metrics.aggregation.events_aggregated / this.metrics.aggregation.windows_created).toFixed(1)
           : 0,
       },
+      
+      anomalies: {
+        total_detected: this.metrics.anomalies.total_detected,
+        by_severity: this.metrics.anomalies.by_severity,
+        by_token: this.metrics.anomalies.by_token,
+      },
     };
   }
 
   // -------------------------------------------------------------------------
-  // Full Metrics Export
+  // Formatting Helpers
   // -------------------------------------------------------------------------
 
   getAll() {
