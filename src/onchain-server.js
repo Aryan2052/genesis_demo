@@ -89,7 +89,8 @@ walletProfiler.on("pattern", (pattern) => {
 
 // Wire events
 listener.on("event", async (event) => {
-  const insight = await formatter.format(event);
+  // Regular events use local formatter (saves AI budget for important alerts)
+  const insight = formatter.formatLocal(event);
   broadcastSSE({ ...event, insight });
 
   // Feed intelligence layer

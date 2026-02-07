@@ -171,12 +171,12 @@ async function startServer() {
       } catch (err) { /* silent */ }
     }
 
-    // ── 4. AI enrichment LAST (slow — Gemini API call, may rate-limit) ──
+    // ── 4. Enrich for dashboard (LOCAL formatter only — saves AI budget for alerts) ──
     try {
-      const insight = await formatter.format(event);
+      const insight = formatter.formatLocal(event);
       const enriched = { ...event, insight };
       broadcastSSE(enriched);
-    } catch (err) { /* AI failure should never block the pipeline */ }
+    } catch (err) { /* enrichment failure should never block the pipeline */ }
   });
 
   listener.on("alert", async (alert) => {
@@ -1065,7 +1065,8 @@ async function main() {
   console.log(`     Liquidity:        ${stats.liquidityEvents}     │  Vesting:     ${stats.vestingEvents}`);
   console.log(`     Alerts recorded:  ${stats.alertsRecorded}     │  Transfers:   ${stats.internalTransfers}`);
 
-  console.log(`\n  🧠 AI: ${aiStats.enabled ? "Gemini active" : "Local only"} | Analyses: ${aiStats.analysisCount || 0} | Errors: ${aiStats.errorCount || 0}`);
+  const aiBudget = aiStats.aiBudget || { used: 0, max: 5, remaining: 5 };
+  console.log(`\n  🧠 AI: ${aiStats.enabled ? "Gemini active" : "Local only"} | Analyses: ${aiStats.analysisCount || 0} | Budget: ${aiBudget.used}/${aiBudget.max} used | Errors: ${aiStats.errorCount || 0}`);
 
   // ── 3B. Telegram Bot — User Preferences & Delivery ─────────────────────
   console.log(`\n  ━━━ 🤖 Telegram Bot ━━━`);

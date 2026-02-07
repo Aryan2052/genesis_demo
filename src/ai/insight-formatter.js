@@ -20,19 +20,53 @@ class InsightFormatter {
       geminiApiKey: config.geminiApiKey || process.env.GEMINI_API_KEY,
     });
     this.useAI = this.aiAgent.enabled;
+
+    // ── AI Budget: limit Gemini calls to avoid rate limits ──
+    // Only high-value events go to the LLM. Everything else uses local formatter.
+    this._aiCallsUsed = 0;
+    this._aiCallsMax = config.maxAICalls || 5; // max 5 AI calls per session
+    this._aiWorthyTypes = new Set([
+      "large_movement",    // whale deposits/withdrawals
+      "emergency",         // vault pause/unpause
+      "large_swap",        // big DEX trades
+      "withdrawal",        // only large ones (checked by amount)
+    ]);
+    this._aiMinAmount = 100_000; // only AI-format events ≥ $100K
+  }
+
+  /**
+   * Check if an event is important enough to spend an AI call on.
+   */
+  _shouldUseAI(event) {
+    if (!this.useAI) return false;
+    if (this._aiCallsUsed >= this._aiCallsMax) return false;
+
+    // Emergency events ALWAYS get AI
+    if (event.type === "emergency") return true;
+
+    // Must be a high-value event type
+    if (!this._aiWorthyTypes.has(event.type)) return false;
+
+    // Check amount threshold
+    const rawAmt = parseFloat(String(event.amount || "0").replace(/,/g, ""));
+    return rawAmt >= this._aiMinAmount;
   }
 
   /**
    * Format a raw event into a human-readable insight.
+   * Only high-value events go to Gemini AI. Everything else uses local formatter.
    * @param {object} event - Raw event from contract listener
    * @returns {Promise<object>} { title, summary, details, severity, recommendation }
    */
   async format(event) {
-    // Try LangChain + Gemini first, fall back to local formatter
-    if (this.useAI) {
+    if (this._shouldUseAI(event)) {
       try {
         const aiInsight = await this.aiAgent.analyze(event);
-        if (aiInsight) return aiInsight;
+        if (aiInsight) {
+          this._aiCallsUsed++;
+          console.log(`  🧠 [AI Budget] ${this._aiCallsUsed}/${this._aiCallsMax} AI calls used`);
+          return aiInsight;
+        }
       } catch (err) {
         console.error(`  ⚠️  [LangChain] Failed, using local formatter: ${err.message}`);
       }
@@ -41,10 +75,24 @@ class InsightFormatter {
   }
 
   /**
-   * Get AI agent stats
+   * Format using ONLY local formatter (no AI call). Use for regular events.
+   */
+  formatLocal(event) {
+    return this._formatLocally(event);
+  }
+
+  /**
+   * Get AI agent stats (includes budget info)
    */
   getAIStats() {
-    return this.aiAgent.getStats();
+    return {
+      ...this.aiAgent.getStats(),
+      aiBudget: {
+        used: this._aiCallsUsed,
+        max: this._aiCallsMax,
+        remaining: this._aiCallsMax - this._aiCallsUsed,
+      },
+    };
   }
 
   // ══════════════════════════════════════════════════════════════════════

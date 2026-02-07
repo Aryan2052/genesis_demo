@@ -4,32 +4,32 @@
   "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "contracts": {
     "GenesisToken": {
-      "address": "0x457cCf29090fe5A24c19c1bc95F492168C0EaFdb",
+      "address": "0x12Bcb546bC60fF39F1Adfc7cE4605d5Bd6a6A876",
       "symbol": "gUSD",
       "decimals": 6
     },
     "GenesisVault": {
-      "address": "0x525C7063E7C20997BaaE9bDa922159152D0e8417"
+      "address": "0xaC47e91215fb80462139756f43438402998E4A3a"
     },
     "ThresholdEngine": {
-      "address": "0x38a024C0b412B9d1db8BC398140D00F5Af3093D4"
+      "address": "0x9BcC604D4381C5b0Ad12Ff3Bf32bEdE063416BC7"
     },
     "AlertRegistry": {
-      "address": "0x5fc748f1FEb28d7b76fa1c6B07D8ba2d5535177c"
+      "address": "0x63fea6E447F120B8Faf85B53cdaD8348e645D80E"
     },
     "GenesisVesting": {
-      "address": "0xB82008565FdC7e44609fA118A4a681E92581e680"
+      "address": "0xdFdE6B33f13de2CA1A75A6F7169f50541B14f75b"
     },
     "GenesisGovernance": {
-      "address": "0x2a810409872AfC346F9B5b26571Fd6eC42EA4849"
+      "address": "0xaC9fCBA56E42d5960f813B9D0387F3D3bC003338"
     },
     "GenesisETH": {
-      "address": "0xb9bEECD1A582768711dE1EE7B0A1d582D9d72a6C",
+      "address": "0x38A70c040CA5F5439ad52d0e821063b0EC0B52b6",
       "symbol": "gETH",
       "decimals": 6
     },
     "GenesisLiquidityPool": {
-      "address": "0x8A93d247134d91e0de6f96547cB0204e5BE8e5D8",
+      "address": "0x54B8d8E2455946f2A5B8982283f2359812e815ce",
       "pair": "gUSD/gETH"
     }
   },
@@ -39,5 +39,5 @@
     "user2": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
     "whale": "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
   },
-  "deployedAt": "2026-02-07T03:56:00.024Z"
+  "deployedAt": "2026-02-07T04:39:12.452Z"
 }
