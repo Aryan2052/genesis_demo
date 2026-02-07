@@ -216,7 +216,7 @@ class ContractListener extends EventEmitter {
       if (thresholds.length > 0) {
         for (const t of thresholds) {
           const types = ["Large Transfer", "Whale Movement", "Rapid Flow", "Custom"];
-          console.log(`     ${t.source === "global" ? "🌍" : "👤"} ${types[t.alertType] || "Custom"}: $${(t.threshold / 1e6).toLocaleString()} (${t.description})`);
+          console.log(`     ${t.source === "global" ? "🌍" : "👤"} ${types[t.alertType] || "Custom"}: $${(t.threshold / 1e6).toLocaleString("en-US")} (${t.description})`);
         }
       }
     } catch (err) {
@@ -270,17 +270,18 @@ class ContractListener extends EventEmitter {
       // ── Check user-defined thresholds ──
       const matched = this.checkUserThresholds(amount.toString());
       for (const t of matched) {
-        console.log(`  🔔 [User Threshold Triggered] $${amountFormatted} exceeded ${t.source} rule: "${t.description}" ($${(t.threshold / 1e6).toLocaleString()} limit)`);
+        console.log(`  🔔 [User Threshold Triggered] $${amountFormatted} exceeded ${t.source} rule: "${t.description}" ($${(t.threshold / 1e6).toLocaleString("en-US")} limit)`);
         this.emit("alert", {
           type: "user_threshold_triggered",
           subType: "deposit",
+          alertType: t.alertType,                               // 0=Large, 1=Whale, 2=RapidFlow, 3=Custom
           user,
           amount: amountFormatted,
           amountRaw: amount.toString(),
           thresholdSource: t.source,
           thresholdOwner: t.user || "protocol",
           thresholdDescription: t.description,
-          thresholdAmount: (t.threshold / 1e6).toLocaleString(),
+          thresholdAmount: (t.threshold / 1e6).toLocaleString("en-US"),
           severity: t.alertType === 1 ? "critical" : "high", // Whale=critical
           timestamp: Number(timestamp),
           txHash: event.log.transactionHash,
@@ -314,13 +315,14 @@ class ContractListener extends EventEmitter {
         this.emit("alert", {
           type: "user_threshold_triggered",
           subType: "withdrawal",
+          alertType: t.alertType,                               // 0=Large, 1=Whale, 2=RapidFlow, 3=Custom
           user,
           amount: amountFormatted,
           amountRaw: amount.toString(),
           thresholdSource: t.source,
           thresholdOwner: t.user || "protocol",
           thresholdDescription: t.description,
-          thresholdAmount: (t.threshold / 1e6).toLocaleString(),
+          thresholdAmount: (t.threshold / 1e6).toLocaleString("en-US"),
           severity: t.alertType === 1 ? "critical" : "high",
           timestamp: Number(timestamp),
           txHash: event.log.transactionHash,

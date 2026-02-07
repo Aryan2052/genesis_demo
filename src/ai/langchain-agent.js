@@ -154,10 +154,10 @@ Provide your analysis as JSON:`,
     if (args.user) parts.push(`User: ${args.user}`);
     if (args.from) parts.push(`From: ${args.from}`);
     if (args.to) parts.push(`To: ${args.to}`);
-    if (args.amount) parts.push(`Amount: $${Number(args.amount).toLocaleString()}`);
-    if (args.newBalance) parts.push(`New Balance: $${Number(args.newBalance).toLocaleString()}`);
-    if (args.remainingBalance) parts.push(`Remaining Balance: $${Number(args.remainingBalance).toLocaleString()}`);
-    if (args.threshold) parts.push(`Threshold: $${Number(args.threshold).toLocaleString()}`);
+    if (args.amount) parts.push(`Amount: $${Number(args.amount).toLocaleString("en-US")}`);
+    if (args.newBalance) parts.push(`New Balance: $${Number(args.newBalance).toLocaleString("en-US")}`);
+    if (args.remainingBalance) parts.push(`Remaining Balance: $${Number(args.remainingBalance).toLocaleString("en-US")}`);
+    if (args.threshold) parts.push(`Threshold: $${Number(args.threshold).toLocaleString("en-US")}`);
     if (args.isDeposit !== undefined) parts.push(`Direction: ${args.isDeposit ? "Deposit" : "Withdrawal"}`);
     if (args.paused !== undefined) parts.push(`Vault Status: ${args.paused ? "PAUSED" : "ACTIVE"}`);
     if (args.triggeredBy || args.owner) parts.push(`Triggered by: ${args.triggeredBy || args.owner}`);

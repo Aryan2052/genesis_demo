@@ -470,14 +470,12 @@ genesis_demo/
 │   ├── contract-listener.js            # Direct contract event subscriptions (724 lines)
 │   ├── onchain-server.js               # Production Express server (~510 lines)
 │   ├── pipeline-orchestrator.js        # 🧠 THE BRAIN — connects all modules (347 lines)
-│   ├── cyrene-bridge.js                # CyreneAI bridge
 │   ├── app.js                          # Main app entry point
 │   ├── api-server.js                   # API server
 │   │
 │   ├── ai/                             # AI Layer
 │   │   ├── langchain-agent.js          # LangChain + Gemini integration (227 lines)
-│   │   ├── insight-formatter.js        # AI formatter + 20 local formatters (567 lines)
-│   │   └── cyrene-agent.js             # CyreneAI agent
+│   │   └── insight-formatter.js        # AI formatter + 20 local formatters (567 lines)
 │   │
 │   ├── engine/                         # Processing Engine
 │   │   ├── rule-loader.js              # Load JSON rules from disk

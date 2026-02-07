@@ -226,10 +226,10 @@ function _formatAmount(rawBigInt) {
     if (rawBigInt < 10n ** 12n) {
       const whole = rawBigInt / 1000000n;
       const frac = rawBigInt % 1000000n;
-      return `$${whole.toLocaleString?.() || whole}.${frac.toString().padStart(6, "0").slice(0, 2)}`;
+      return `$${whole.toLocaleString?.("en-US") || whole}.${frac.toString().padStart(6, "0").slice(0, 2)}`;
     } else {
       const whole = rawBigInt / (10n ** 18n);
-      return `${whole.toLocaleString?.() || whole} tokens`;
+      return `${whole.toLocaleString?.("en-US") || whole} tokens`;
     }
   } catch {
     return rawBigInt.toString();

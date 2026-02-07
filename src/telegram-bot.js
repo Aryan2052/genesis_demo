@@ -23,18 +23,24 @@ const EventEmitter = require("events");
 
 // ─── Supported alert types (matches ThresholdEngine.sol AlertType enum) ───
 const ALERT_TYPES = {
-  large_transfer: { id: 0, name: "Large Transfer", emoji: "💰", description: "Deposits/withdrawals exceeding your threshold" },
-  whale_movement: { id: 1, name: "Whale Movement", emoji: "🐋", description: "Whale wallets moving big amounts" },
-  rapid_flow:     { id: 2, name: "Rapid Flow",     emoji: "⚡", description: "Rapid in/out flows (potential exploit)" },
-  custom:         { id: 3, name: "Custom",          emoji: "🔧", description: "Any event exceeding your threshold" },
+  large_transfer:  { id: 0, name: "Large Transfer",   emoji: "💰", description: "Deposits/withdrawals exceeding your threshold" },
+  whale_movement:  { id: 1, name: "Whale Movement",   emoji: "🐋", description: "Whale wallets moving big amounts" },
+  rapid_flow:      { id: 2, name: "Rapid Flow",       emoji: "⚡", description: "Rapid in/out flows (potential exploit)" },
+  custom:          { id: 3, name: "Custom",            emoji: "🔧", description: "Any event exceeding your threshold" },
+  liquidity_event: { id: 4, name: "Liquidity Event",  emoji: "💧", description: "Pool adds, removes, swaps & large swaps" },
+  governance:      { id: 5, name: "Governance",        emoji: "🏛️", description: "Proposals, votes, executions & cancellations" },
+  vesting:         { id: 6, name: "Vesting",           emoji: "📅", description: "Vesting schedules, claims, revocations & milestones" },
 };
 
 // Suggested thresholds for each alert type (in USD)
 const THRESHOLD_PRESETS = {
-  large_transfer: [10_000, 50_000, 100_000, 500_000],
-  whale_movement: [100_000, 250_000, 500_000, 1_000_000],
-  rapid_flow:     [10_000, 25_000, 50_000, 100_000],
-  custom:         [5_000, 25_000, 50_000, 100_000],
+  large_transfer:  [10_000, 50_000, 100_000, 500_000],
+  whale_movement:  [100_000, 250_000, 500_000, 1_000_000],
+  rapid_flow:      [10_000, 25_000, 50_000, 100_000],
+  custom:          [5_000, 25_000, 50_000, 100_000],
+  liquidity_event: [10_000, 50_000, 100_000, 500_000],
+  governance:      [1_000, 10_000, 50_000, 100_000],
+  vesting:         [10_000, 50_000, 100_000, 500_000],
 };
 
 // Only chain we support for this hackathon
@@ -108,7 +114,7 @@ class TelegramBot extends EventEmitter {
   async dispatchAlert(alert, telegramMessage) {
     if (!this.botToken) return 0;
 
-    const eventType = this._mapEventType(alert.type);
+    const eventType = this._mapEventType(alert);          // pass whole alert so alertType is used when present
     const rawAmount = this._extractRawAmount(alert);
     let sentCount = 0;
 
@@ -118,7 +124,7 @@ class TelegramBot extends EventEmitter {
         try {
           const matchInfo = matchingPrefs.map(p => {
             const typeDef = Object.values(ALERT_TYPES).find(t => t.id === p.alertType);
-            return `${typeDef?.emoji || "📋"} Matched: ${typeDef?.name || "Custom"} (≥$${(p.threshold / 1e6).toLocaleString()})`;
+            return `${typeDef?.emoji || "📋"} Matched: ${typeDef?.name || "Custom"} (≥$${(p.threshold / 1e6).toLocaleString("en-US")})`;
           }).join("\n");
           const personalized = `${matchInfo}\n━━━━━━━━━━━━━━━━━━\n${telegramMessage}`;
           await this._send(chatId, personalized);
@@ -339,11 +345,11 @@ class TelegramBot extends EventEmitter {
     ].join("\n");
 
     const row1 = presets.slice(0, 2).map(t => ({
-      text: `💵 $${t.toLocaleString()}`,
+      text: `💵 $${t.toLocaleString("en-US")}`,
       callback_data: `thresh:${alertType}:${t}`,
     }));
     const row2 = presets.slice(2, 4).map(t => ({
-      text: `💵 $${t.toLocaleString()}`,
+      text: `💵 $${t.toLocaleString("en-US")}`,
       callback_data: `thresh:${alertType}:${t}`,
     }));
 
@@ -420,7 +426,7 @@ class TelegramBot extends EventEmitter {
       `✅ <b>Alert subscription created!</b>`,
       ``,
       `${typeDef.emoji} <b>Type:</b> ${typeDef.name}`,
-      `💵 <b>Threshold:</b> ≥ $${thresholdUsd.toLocaleString()}`,
+      `💵 <b>Threshold:</b> ≥ $${thresholdUsd.toLocaleString("en-US")}`,
       `⛓️ <b>Chain:</b> Hardhat Localhost (#31337)`,
       `🆔 <b>ID:</b> #${prefId}`,
       ``,
@@ -457,7 +463,7 @@ class TelegramBot extends EventEmitter {
       const typeDef = Object.values(ALERT_TYPES).find(t => t.id === pref.alertType);
       lines.push(
         `  #${id} ${typeDef?.emoji || "📋"} <b>${typeDef?.name || "Custom"}</b>`,
-        `     💵 Threshold: ≥ $${(pref.threshold / 1e6).toLocaleString()}`,
+        `     💵 Threshold: ≥ $${(pref.threshold / 1e6).toLocaleString("en-US")}`,
         `     ⛓️ Chain: Hardhat Localhost`,
         ``
       );
@@ -483,7 +489,7 @@ class TelegramBot extends EventEmitter {
     for (const [id, pref] of user.alertPrefs) {
       const typeDef = Object.values(ALERT_TYPES).find(t => t.id === pref.alertType);
       buttons.push([{
-        text: `🗑️ #${id} ${typeDef?.name || "Custom"} ≥ $${(pref.threshold / 1e6).toLocaleString()}`,
+        text: `🗑️ #${id} ${typeDef?.name || "Custom"} ≥ $${(pref.threshold / 1e6).toLocaleString("en-US")}`,
         callback_data: `remove:${id}`,
       }]);
     }
@@ -617,7 +623,7 @@ class TelegramBot extends EventEmitter {
     });
 
     const thresholds = this.listener?.getActiveThresholds() || [];
-    const alertTypeNames = ["Large Transfer", "Whale Movement", "Rapid Flow", "Custom"];
+    const alertTypeNames = ["Large Transfer", "Whale Movement", "Rapid Flow", "Custom", "Liquidity Event", "Governance", "Vesting"];
     const leaderboard = this.pipeline?.walletProfiler?.getRiskLeaderboard() || [];
     const topRisk = leaderboard.slice(0, 3);
 
@@ -648,7 +654,7 @@ class TelegramBot extends EventEmitter {
       thresholds.slice(0, 6).forEach((t) => {
         const typeName = alertTypeNames[t.alertType] || "Custom";
         const src = t.source === "global" ? "🌍" : "👤";
-        lines.push(`  ${src} ${typeName}: ≥$${(t.threshold / 1e6).toLocaleString()}`);
+        lines.push(`  ${src} ${typeName}: ≥$${(t.threshold / 1e6).toLocaleString("en-US")}`);
       });
     }
 
@@ -676,21 +682,36 @@ class TelegramBot extends EventEmitter {
   //  INTERNALS
   // ═══════════════════════════════════════════════════════════════════════
 
-  _mapEventType(eventType) {
-    switch (eventType) {
+  _mapEventType(alert) {
+    // If the alert already carries an on-chain alertType (0-6), use it directly
+    if (alert.alertType !== undefined && alert.alertType !== null) {
+      return Number(alert.alertType);           // 0=Large, 1=Whale, 2=RapidFlow, 3=Custom, 4=Liquidity, 5=Governance, 6=Vesting
+    }
+    switch (alert.type || alert) {
       case "deposit": case "withdrawal": case "large_movement":
-        return 0;
-      case "user_threshold_triggered":
-        return 3;
+        return 0;           // Large Transfer
       case "erc20_transfer": case "internal_transfer":
-        return 0;
+        return 0;           // Large Transfer
+      case "liquidity_added": case "liquidity_removed": case "liquidity_swap":
+      case "large_swap": case "liquidity_rebalance":
+        return 4;           // Liquidity Event
+      case "governance_proposal_created": case "governance_vote":
+      case "governance_proposal_executed": case "governance_proposal_cancelled":
+      case "governance_state_change":
+        return 5;           // Governance
+      case "vesting_schedule_created": case "vesting_claim":
+      case "vesting_revoked": case "vesting_milestone": case "vesting_cliff":
+        return 6;           // Vesting
+      case "emergency":
+        return 2;           // Rapid Flow
       default:
-        return 3;
+        return 3;           // Custom
     }
   }
 
   _extractRawAmount(alert) {
     if (alert.amountRaw) return Number(alert.amountRaw);
+    if (alert.weightRaw) return Number(alert.weightRaw);   // governance vote weight
     if (alert.amount) {
       const cleaned = String(alert.amount).replace(/,/g, "");
       const parsed = parseFloat(cleaned);
@@ -705,8 +726,11 @@ class TelegramBot extends EventEmitter {
   _findMatchingPrefs(user, eventTypeId, rawAmount) {
     const matches = [];
     for (const [, pref] of user.alertPrefs) {
-      const typeMatch = pref.alertType === eventTypeId || pref.alertType === 3 || eventTypeId === 3;
-      const thresholdMatch = rawAmount >= pref.threshold;
+      // Exact type match, OR the user subscribed to "Custom" (3) which catches everything
+      const typeMatch = pref.alertType === eventTypeId || pref.alertType === 3;
+      // For events with no monetary amount (governance proposals, vesting milestones, etc.)
+      // always pass threshold check so subscribers still get notified
+      const thresholdMatch = rawAmount === 0 ? true : rawAmount >= pref.threshold;
       const chainMatch = pref.chain === "localhost";
       if (typeMatch && thresholdMatch && chainMatch) {
         matches.push(pref);

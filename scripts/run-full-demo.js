@@ -963,42 +963,62 @@ async function main() {
   } catch (err) {
     console.log(`  ⚠️  Welcome send failed (network): ${err.message}`);
   }
-  await sleep(1000);
 
-  // Clear any leftover prefs from previous runs or live Telegram taps
+  // Clear any leftover prefs from previous runs
   const existingUser = telegramBot.users.get(String(TELEGRAM_CHAT_ID));
   if (existingUser && existingUser.alertPrefs.size > 0) {
     existingUser.alertPrefs.clear();
     console.log("  🧹 Cleared previous alert subscriptions for a clean demo.");
   }
 
-  // Step 2: User chooses alerts via buttons (simulated for demo)
-  console.log("\n  🎯 User picks alerts via inline buttons:");
+  // ───────────────────────────────────────────────────────────────────────
+  //  WAIT FOR REAL USER INPUT — user taps buttons on Telegram
+  //  The bot's polling loop handles callback_query (button presses).
+  //  We wait here until the user has at least 1 alert preference,
+  //  or until 120 seconds pass (then auto-set defaults).
+  // ───────────────────────────────────────────────────────────────────────
+  console.log("\n  ⏳ Waiting for YOU to choose alerts on Telegram...");
+  console.log("     👉 Open Telegram → tap [🔔 Choose My Alerts] → pick your alerts → tap [✅ Done]");
+  console.log("     ⏰ Auto-continue in 120s if no selection is made.\n");
 
-  console.log("\n     Step A: User taps [🔔 Choose My Alerts]");
-  console.log("     → Bot shows: [💰 Large Transfer] [🐋 Whale Movement] [⚡ Rapid Flow] [🔧 Custom]");
+  const WAIT_TIMEOUT = 120; // seconds
+  let waited = 0;
+  let userChose = false;
+  while (waited < WAIT_TIMEOUT) {
+    await sleep(2000);
+    waited += 2;
 
-  console.log("\n     Step B: User taps [💰 Large Transfer]");
-  console.log("     → Bot shows: [$10K] [$50K] [$100K] [$500K] [✏️ Custom Amount]");
+    // Check if user has added any preferences via Telegram buttons
+    const currentUser = telegramBot.users.get(String(TELEGRAM_CHAT_ID));
+    const prefCount = currentUser?.alertPrefs?.size || 0;
+    if (prefCount > 0) {
+      userChose = true;
+      console.log(`  ✅ User selected ${prefCount} alert(s) via Telegram! Proceeding...`);
+      break;
+    }
 
-  console.log("\n     Step C: User taps [$50K]");
-  const pref1 = telegramBot.addPreference(TELEGRAM_CHAT_ID, "large_transfer", 50000);
-  if (pref1) {
-    console.log("     ✅ Subscribed! Large Transfer ≥ $50,000");
-    console.log("     → Bot shows: [➕ Add Another Alert] [📋 View My Alerts] [✅ Done]");
+    // Progress dots every 10 seconds
+    if (waited % 10 === 0) {
+      console.log(`     ⏳ Still waiting... (${waited}s / ${WAIT_TIMEOUT}s)`);
+    }
   }
 
-  console.log("\n     Step D: User taps [➕ Add Another Alert]");
-  console.log("     → Bot shows alert type buttons again");
-  console.log("     Step E: User taps [🐋 Whale Movement] → [✏️ Custom Amount] → types '200000'");
-  const pref2 = telegramBot.addPreference(TELEGRAM_CHAT_ID, "whale_movement", 200000);
-  if (pref2) {
-    console.log("     ✅ Subscribed! Whale Movement ≥ $200,000");
+  // If user didn't choose, set defaults so the demo still works
+  if (!userChose) {
+    console.log("\n  ⏰ Timeout reached — setting default alerts for demo:");
+    telegramBot.addPreference(TELEGRAM_CHAT_ID, "large_transfer", 50000);
+    console.log("     ✅ Default: Large Transfer ≥ $50,000");
+    telegramBot.addPreference(TELEGRAM_CHAT_ID, "whale_movement", 200000);
+    console.log("     ✅ Default: Whale Movement ≥ $200,000");
+    telegramBot.addPreference(TELEGRAM_CHAT_ID, "liquidity_event", 10000);
+    console.log("     ✅ Default: Liquidity Event ≥ $10,000");
+    telegramBot.addPreference(TELEGRAM_CHAT_ID, "governance", 1000);
+    console.log("     ✅ Default: Governance ≥ $1,000");
+    telegramBot.addPreference(TELEGRAM_CHAT_ID, "vesting", 10000);
+    console.log("     ✅ Default: Vesting ≥ $10,000");
   }
 
-  console.log("\n     Step F: User taps [✅ Done]");
-  console.log("     → Bot: 'You're all set! Only matching alerts will reach you.'");
-
+  // Show final bot status
   const botSummary = telegramBot.getSummary();
   console.log(`\n  🤖 Bot Status After User Setup:`);
   console.log(`     Registered users:    ${botSummary.totalUsers}`);
@@ -1006,7 +1026,7 @@ async function main() {
   for (const [, user] of telegramBot.users) {
     for (const [, pref] of user.alertPrefs) {
       const typeName = Object.values(ALERT_TYPES).find(t => t.id === pref.alertType)?.name || "Custom";
-      console.log(`     → ${typeName} ≥ $${(pref.threshold / 1e6).toLocaleString()}`);
+      console.log(`     → ${typeName} ≥ $${(pref.threshold / 1e6).toLocaleString("en-US")}`);
     }
   }
 

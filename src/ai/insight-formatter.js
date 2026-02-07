@@ -560,7 +560,9 @@ class InsightFormatter {
       severity: event.severity || "high",
       recommendation: isWhale
         ? "Whale activity detected. Track this wallet for follow-up movements and check if other whales are moving in the same direction."
-        : "User-defined threshold breached. Review the transaction and check if the wallet shows unusual patterns.",
+        : event.thresholdSource === "global"
+          ? "Protocol-wide threshold breached. Review the transaction and check if the wallet shows unusual patterns."
+          : "User-defined threshold breached. Review the transaction and check if the wallet shows unusual patterns.",
       aiPowered: false,
     };
   }
