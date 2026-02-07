@@ -206,25 +206,37 @@ async function startServer() {
       } catch (err) { /* silent */ }
     }
 
-    // AI enrichment (slow — may rate-limit)
+    // AI enrichment: LangChain + Gemini first, local formatter fallback
+    // formatter.format() ALWAYS returns an insight (AI or local — never throws)
+    let insight;
     try {
-      const insight = await formatter.format(alert);
-      const enriched = { ...alert, insight };
-      broadcastSSE(enriched);
+      insight = await formatter.format(alert);
+    } catch (err) {
+      // Absolute safety net — should never happen, but produce a local insight
+      insight = {
+        title: `🚨 ${alert.type.replace(/_/g, " ").toUpperCase()}`,
+        summary: alert.amount ? `$${alert.amount} movement detected on-chain.` : "On-chain event detected.",
+        details: "",
+        severity: alert.severity || "medium",
+        recommendation: "Review event details on the dashboard.",
+        aiPowered: false,
+      };
+    }
 
-      console.log();
-      console.log(`  🧠 INSIGHT: ${insight.title}`);
-      console.log(`     ${insight.summary}`);
-      if (insight.recommendation) console.log(`     💡 ${insight.recommendation}`);
-      console.log();
+    broadcastSSE({ ...alert, insight });
 
-      // 🤖 User-driven dispatch: only send to users whose prefs match
+    console.log();
+    console.log(`  🧠 INSIGHT: ${insight.title}`);
+    console.log(`     ${insight.summary}`);
+    if (insight.recommendation) console.log(`     💡 ${insight.recommendation}`);
+    console.log();
+
+    // Dispatch to Telegram — always use formatter.toTelegram() for clean text
+    try {
       const sentCount = await telegramBot.dispatchAlert(alert, formatter.toTelegram(insight));
       if (sentCount > 0) console.log(`  📨 [Telegram] Alert sent to ${sentCount} subscriber(s)`);
     } catch (err) {
-      // If AI fails, still try filtered dispatch with basic message
-      const sentCount = await telegramBot.dispatchAlert(alert, `🚨 Alert: ${alert.type} — ${alert.severity || "medium"}`).catch(() => 0);
-      if (sentCount > 0) console.log(`  📨 [Telegram] Fallback alert sent to ${sentCount} subscriber(s)`);
+      // Network error to Telegram API — not a formatting issue
     }
   });
 
@@ -953,6 +965,13 @@ async function main() {
   }
   await sleep(1000);
 
+  // Clear any leftover prefs from previous runs or live Telegram taps
+  const existingUser = telegramBot.users.get(String(TELEGRAM_CHAT_ID));
+  if (existingUser && existingUser.alertPrefs.size > 0) {
+    existingUser.alertPrefs.clear();
+    console.log("  🧹 Cleared previous alert subscriptions for a clean demo.");
+  }
+
   // Step 2: User chooses alerts via buttons (simulated for demo)
   console.log("\n  🎯 User picks alerts via inline buttons:");
 
@@ -1010,28 +1029,62 @@ async function main() {
   await sleep(2000);
 
   // ═══════════════════════════════════════════════════════════════════════
-  //  BONUS 3: Telegram Bot Summary — Show what happened
   // ═══════════════════════════════════════════════════════════════════════
+  //  PHASE 3: Results Dashboard — Everything in one clean summary
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const stats = listener.getStats();
+  const aiStats = formatter.getAIStats();
+  const botFinalSummary = telegramBot.getSummary();
+  const activeThresholds = listener.getActiveThresholds();
+  const userThresholdAlerts = eventLog.filter(e => e.type === "user_threshold_triggered");
+  const leaderboard = pipeline.walletProfiler.getRiskLeaderboard();
+  const recentPatterns = pipeline.walletProfiler.getRecentPatterns(50);
+  const intelStats = pipeline.walletProfiler.getStats();
+  const anomalyStats = pipeline.anomalyDetector.getStats();
+  const anomalyLog = pipeline.intelligenceLog.filter((l) => l.type === "anomaly");
+  const pipeStats = pipeline.getFullPipelineStats();
+  const alertTypeNames = ["LARGE_TRANSFER", "WHALE_MOVEMENT", "RAPID_FLOW", "CUSTOM"];
+
+  // Load test account names for display
+  const testAccounts = loadDeployment().testAccounts || {};
+  const nameMap = {};
+  for (const [name, addr] of Object.entries(testAccounts)) {
+    nameMap[addr.toLowerCase()] = name.toUpperCase();
+  }
+
+  // ── 3A. Listener & Event Stats ─────────────────────────────────────────
   console.log("\n╔══════════════════════════════════════════════════════════╗");
-  console.log("║   🤖 BONUS 3: Telegram Alert Delivery Results            ║");
-  console.log("║   Only alerts matching user choices were delivered!       ║");
+  console.log("║   📊 PHASE 3: Full Pipeline Results                      ║");
   console.log("╚══════════════════════════════════════════════════════════╝");
 
+  console.log(`\n  📡 Listener Stats (${stats.uptimeSeconds}s uptime):`);
+  console.log(`     Events caught:    ${stats.eventsReceived}    │  Deposits:    ${stats.depositsDetected}`);
+  console.log(`     Large movements:  ${stats.largeMovements}     │  Withdrawals: ${stats.withdrawalsDetected}`);
+  console.log(`     Thresholds:       ${stats.thresholdChanges}     │  Governance:  ${stats.governanceEvents}`);
+  console.log(`     Liquidity:        ${stats.liquidityEvents}     │  Vesting:     ${stats.vestingEvents}`);
+  console.log(`     Alerts recorded:  ${stats.alertsRecorded}     │  Transfers:   ${stats.internalTransfers}`);
 
-  const finalSummary = telegramBot.getSummary();
-  console.log(`\n  📱 User chose these alerts BEFORE the demo started:`);
-  for (const [, user] of telegramBot.users) {
-    for (const [, pref] of user.alertPrefs) {
-      const typeDef = Object.values(ALERT_TYPES).find(t => t.id === pref.alertType);
-      console.log(`     → ${typeDef?.emoji || "📋"} ${typeDef?.name || "Custom"} ≥ $${(pref.threshold / 1e6).toLocaleString()}`);
+  console.log(`\n  🧠 AI: ${aiStats.enabled ? "Gemini active" : "Local only"} | Analyses: ${aiStats.analysisCount || 0} | Errors: ${aiStats.errorCount || 0}`);
+
+  // ── 3B. Telegram Bot — User Preferences & Delivery ─────────────────────
+  console.log(`\n  ━━━ 🤖 Telegram Bot ━━━`);
+  console.log(`  Users: ${botFinalSummary.totalUsers} | Subscriptions: ${botFinalSummary.totalPreferences}`);
+  if (botFinalSummary.users.length > 0) {
+    for (const u of botFinalSummary.users) {
+      const chatLabel = u.chatId === TELEGRAM_CHAT_ID ? `${u.username}` : u.username;
+      if (u.preferences.length > 0) {
+        for (const p of u.preferences) {
+          const typeDef = Object.values(ALERT_TYPES).find(t => t.name === p.type);
+          console.log(`     ${typeDef?.emoji || "📋"} ${p.type} ≥ $${(p.threshold / 1e6).toLocaleString()} (${chatLabel})`);
+        }
+      }
     }
   }
-  console.log(`\n  📊 Subscriptions: ${finalSummary.totalPreferences} | Users: ${finalSummary.totalUsers}`);
-  console.log(`  ✅ Only events matching those choices were sent to Telegram.`);
-  console.log(`  🚫 Everything else was silently filtered out — ZERO spam.`);
+  console.log(`  Flow: Welcome → [🔔 Choose Alerts] → User picks → ✅ Subscribed → Filtered dispatch`);
+  console.log(`  🚫 Zero spam — only matched alerts delivered.`);
 
-  // Send a dashboard report to Telegram
-  console.log(`\n  📊 Sending dashboard report to Telegram...`);
+  // Send dashboard report to Telegram
   try {
     await telegramBot.sendReport();
     console.log(`  📨 Dashboard report sent to Telegram!`);
@@ -1039,142 +1092,24 @@ async function main() {
     console.log(`  ⚠️  Report send failed: ${err.message}`);
   }
 
-  await sleep(1000);
-
-  // Phase 3: Show captured results
-  const stats = listener.getStats();
-  console.log("\n╔══════════════════════════════════════════════════════════╗");
-  console.log("║   📊 PHASE 3: Listener Results                          ║");
-  console.log("╚══════════════════════════════════════════════════════════╝");
-  console.log(`\n  📊 Listener Stats:`);
-  console.log(`     Total events caught:   ${stats.eventsReceived}`);
-  console.log(`     Deposits:              ${stats.depositsDetected}`);
-  console.log(`     Withdrawals:           ${stats.withdrawalsDetected}`);
-  console.log(`     Large movements:       ${stats.largeMovements}`);
-  console.log(`     Internal transfers:    ${stats.internalTransfers}`);
-  console.log(`     Threshold changes:     ${stats.thresholdChanges}`);
-  console.log(`     Alerts recorded:       ${stats.alertsRecorded}`);
-  console.log(`     Vesting events:        ${stats.vestingEvents}`);
-  console.log(`     Governance events:     ${stats.governanceEvents}`);
-  console.log(`     Liquidity events:      ${stats.liquidityEvents}`);
-  console.log(`     Uptime:                ${stats.uptimeSeconds}s`);
-
-  const aiStats = formatter.getAIStats();
-  console.log(`\n  🧠 AI Stats:`);
-  console.log(`     AI enabled:            ${aiStats.enabled}`);
-  console.log(`     Analyses completed:    ${aiStats.analysisCount || 0}`);
-
-  console.log(`\n  📋 Events caught by listener (${eventLog.length} total):`);
-  eventLog.forEach((e, i) => {
-    // amount is already a formatted string like "500,000.00" from _formatAmount
-    // amountRaw is the raw bigint string — use amount directly if it exists
-    const amt = e.amount || e.amountIn || "";
-    const amtStr = amt ? ` — $${amt}` : "";
-    const label = e.type || "unknown";
-    console.log(`     ${String(i + 1).padStart(2)}. ${label}${amtStr}`);
-  });
-
-  console.log("\n  ═══════════════════════════════════════════════════════");
-  console.log("  ✅ FULL PIPELINE VERIFIED:");
-  console.log("     Smart Contracts → Event Listener → AI Formatter → Telegram Bot (filtered)");
-  console.log("     Smart Contracts → Event Listener → SQLite Database");
-  console.log("     Smart Contracts → Anomaly Detector → Wallet Profiler → Intel Dashboard");
-  console.log("     Telegram Bot → Inline Buttons → User Picks Alerts → Filtered Dispatch");
-  console.log("     Telegram Bot → /report → Dashboard Report + [🔄 Refresh] Button");
-  console.log("  ═══════════════════════════════════════════════════════");
-
-  // ═══════════════════════════════════════════════════════════════════════
-  //  🔔 USER-DRIVEN THRESHOLDS SUMMARY
-  // ═══════════════════════════════════════════════════════════════════════
-  console.log("\n╔══════════════════════════════════════════════════════════╗");
-  console.log("║   🔔 USER-DRIVEN THRESHOLDS — On-Chain Configuration     ║");
-  console.log("╚══════════════════════════════════════════════════════════╝");
-
-  const activeThresholds = listener.getActiveThresholds();
-  const userThresholdAlerts = eventLog.filter(e => e.type === "user_threshold_triggered");
-  const alertTypes = ["LARGE_TRANSFER", "WHALE_MOVEMENT", "RAPID_FLOW", "CUSTOM"];
-
-  console.log(`\n  📋 Active On-Chain Thresholds: ${activeThresholds.length}`);
+  // ── 3C. On-Chain Thresholds ────────────────────────────────────────────
+  console.log(`\n  ━━━ 🔔 On-Chain Thresholds ━━━`);
+  console.log(`  Active: ${activeThresholds.length} | Triggered: ${userThresholdAlerts.length}`);
   if (activeThresholds.length > 0) {
-    activeThresholds.forEach((t, i) => {
-      const typeName = alertTypes[t.alertType] || `TYPE_${t.alertType}`;
+    for (const t of activeThresholds) {
+      const typeName = alertTypeNames[t.alertType] || `TYPE_${t.alertType}`;
       const amtStr = `$${(t.threshold / 1e6).toLocaleString()}`;
-      const src = t.source === "global" ? "🌍 Global" : `👤 User ${t.user ? t.user.slice(0, 6) + "…" + t.user.slice(-4) : "unknown"}`;
-      console.log(`     ${i + 1}. [${typeName}] ${amtStr} — ${src} — "${t.description}"`);
-    });
-  } else {
-    console.log("     (no user-created thresholds found)");
-  }
-
-  console.log(`\n  🔔 User Threshold Alerts Triggered: ${userThresholdAlerts.length}`);
-  if (userThresholdAlerts.length > 0) {
-    userThresholdAlerts.forEach((a, i) => {
-      const desc = a.thresholdDescription || a.type;
-      console.log(`     ${i + 1}. ${desc}`);
-    });
-  }
-
-  console.log(`\n  ⛓️  Chain: ${process.env.CHAIN_NAME || "localhost"} (ID: ${process.env.CHAIN_ID || "31337"})`);
-  console.log(`  🌐 RPC:   ${process.env.RPC_URL || "http://127.0.0.1:8545"}`);
-  console.log("  ═══════════════════════════════════════════════════════");
-
-  // ═══════════════════════════════════════════════════════════════════════
-  //  � TELEGRAM BOT — User-Driven Alert Preferences
-  // ═══════════════════════════════════════════════════════════════════════
-  console.log("\n╔══════════════════════════════════════════════════════════╗");
-  console.log("║   🤖 TELEGRAM BOT — User-Driven Alert System            ║");
-  console.log("╚══════════════════════════════════════════════════════════╝");
-
-  const botFinalSummary = telegramBot.getSummary();
-  console.log(`\n  📱 Registered Users: ${botFinalSummary.totalUsers}`);
-  console.log(`  📋 Alert Subscriptions: ${botFinalSummary.totalPreferences}`);
-
-  if (botFinalSummary.users.length > 0) {
-    botFinalSummary.users.forEach((u) => {
-      const chatLabel = u.chatId === TELEGRAM_CHAT_ID ? `${u.username} (default)` : u.username;
-      console.log(`\n  👤 ${chatLabel}:`);
-      if (u.preferences.length > 0) {
-        u.preferences.forEach((p) => {
-          console.log(`     #${p.id} ${p.type} ≥ $${(p.threshold / 1e6).toLocaleString()} on ${p.chain}`);
-        });
-      } else {
-        console.log(`     (no subscriptions)`);
-      }
-    });
-  }
-
-  console.log(`\n  🔑 Alert Flow (User-First, Button-Driven):`);
-  console.log(`     1. Bot sends Welcome → [🔔 Choose Alerts] button`);
-  console.log(`     2. User taps → picks alert type → picks threshold`);
-  console.log(`     3. ✅ Subscribed BEFORE any events happen`);
-  console.log(`     4. On-chain events fire → bot checks user prefs`);
-  console.log(`     5. Only matching alerts delivered — everything else filtered`);
-  console.log(`     6. /report → Dashboard report + [🔄 Refresh] button`);
-  console.log(`\n  🚫 NO alerts without user choice — ZERO spam!`);
-  console.log(`  ✅ User is always in control of what they receive!`);
-  console.log("  ═══════════════════════════════════════════════════════");
-
-  // ═══════════════════════════════════════════════════════════════════════
-  //  �🧠 INTELLIGENCE LAYER SHOWCASE — The "WOW" Section
-  // ═══════════════════════════════════════════════════════════════════════
-  console.log("\n╔══════════════════════════════════════════════════════════╗");
-  console.log("║   🧠 INTELLIGENCE LAYER — Wallet Profiling & Anomalies  ║");
-  console.log("╚══════════════════════════════════════════════════════════╝");
-
-  // ── Wallet Risk Leaderboard ──
-  const leaderboard = pipeline.walletProfiler.getRiskLeaderboard();
-  if (leaderboard.length > 0) {
-    console.log(`\n  🏆 WALLET RISK LEADERBOARD (${leaderboard.length} wallets profiled):`);
-    console.log("  ┌──────────────────────┬───────┬──────────┬────────┬─────────────────────────┐");
-    console.log("  │ Address              │ Risk  │ Level    │ TXs    │ Volume                  │");
-    console.log("  ├──────────────────────┼───────┼──────────┼────────┼─────────────────────────┤");
-    const testAccounts = loadDeployment().testAccounts;
-    const nameMap = {};
-    if (testAccounts) {
-      for (const [name, addr] of Object.entries(testAccounts)) {
-        nameMap[addr.toLowerCase()] = name.toUpperCase();
-      }
+      const src = t.source === "global" ? "🌍" : `👤 ${t.user ? t.user.slice(0, 6) + "…" + t.user.slice(-4) : "?"}`;
+      console.log(`     ${src} [${typeName}] ${amtStr} — "${t.description}"`);
     }
+  }
+
+  // ── 3D. Intelligence Layer ─────────────────────────────────────────────
+  console.log(`\n  ━━━ 🧠 Intelligence Layer ━━━`);
+
+  // Wallet Risk Leaderboard
+  if (leaderboard.length > 0) {
+    console.log(`  ${leaderboard.length} wallets profiled:`);
     for (const w of leaderboard) {
       const shortAddr = `${w.address.slice(0, 6)}...${w.address.slice(-4)}`;
       const walletName = nameMap[w.address.toLowerCase()] || "";
@@ -1187,162 +1122,71 @@ async function main() {
         : w.totalVolume >= 1000
         ? `$${(w.totalVolume / 1000).toFixed(1)}K`
         : `$${w.totalVolume.toFixed(0)}`;
-      console.log(`  │ ${label.padEnd(20)} │ ${riskEmoji} ${String(w.riskScore).padStart(3)} │ ${w.riskLevel.padEnd(8)} │ ${String(w.totalTxCount).padStart(6)} │ ${vol.padEnd(23)} │`);
-    }
-    console.log("  └──────────────────────┴───────┴──────────┴────────┴─────────────────────────┘");
-  } else {
-    console.log("\n  ⚠️  No wallets profiled (pipeline may not have processed events yet)");
-  }
-
-  // ── Per-Wallet Deep Dive (top 3 riskiest) ──
-  if (leaderboard.length > 0) {
-    console.log("\n  🔍 TOP RISK WALLET DEEP DIVES:");
-    const topWallets = leaderboard.slice(0, 3);
-    const testAccounts2 = loadDeployment().testAccounts;
-    const nameMap2 = {};
-    if (testAccounts2) {
-      for (const [name, addr] of Object.entries(testAccounts2)) {
-        nameMap2[addr.toLowerCase()] = name.toUpperCase();
-      }
-    }
-    for (const w of topWallets) {
-      const profile = pipeline.walletProfiler.getProfile(w.address);
-      const patterns = pipeline.walletProfiler.getWalletPatterns(w.address);
-      const walletName = nameMap2[w.address.toLowerCase()] || "";
-      const shortAddr = `${w.address.slice(0, 6)}...${w.address.slice(-4)}`;
-      const label = walletName ? `${shortAddr} (${walletName})` : shortAddr;
-      const riskEmoji = w.riskScore > 75 ? "🔴" : w.riskScore > 50 ? "🟠" : w.riskScore > 25 ? "🟡" : "🟢";
-      console.log(`\n     ${riskEmoji} ${label} — Risk Score: ${w.riskScore}/100 (${w.riskLevel})`);
-      console.log(`        Transactions: ${w.totalTxCount} | Volume: $${(isNaN(w.totalVolume) ? 0 : w.totalVolume).toLocaleString()}`);
-      console.log(`        Contracts touched: ${w.contractsTouched.join(", ") || "none"}`);
-      if (profile && profile.contractActivity) {
-        const activities = Object.entries(profile.contractActivity);
-        if (activities.length > 0) {
-          console.log(`        Activity breakdown:`);
-          for (const [contract, data] of activities) {
-            const cShort = contract.length > 20 ? `${contract.slice(0, 6)}...${contract.slice(-4)}` : contract;
-            const volStr = isNaN(data.volume) ? "0" : data.volume.toLocaleString();
-            console.log(`          ${cShort}: ${data.count} txs, $${volStr} vol`);
-          }
-        }
-      }
-      if (patterns.length > 0) {
-        console.log(`        ⚠️  Detected patterns:`);
-        for (const p of patterns.slice(-5)) {
-          const pEmoji = p.severity === "critical" ? "🔴" : p.severity === "high" ? "🟠" : "🟡";
-          console.log(`          ${pEmoji} ${p.type}: ${p.description}`);
-        }
-      }
+      console.log(`     ${riskEmoji} ${label.padEnd(24)} Risk: ${String(w.riskScore).padStart(3)}/100  TXs: ${String(w.totalTxCount).padStart(3)}  Vol: ${vol}`);
     }
   }
 
-  // ── Detected Patterns Summary ──
-  const recentPatterns = pipeline.walletProfiler.getRecentPatterns(50);
-  const intelStats = pipeline.walletProfiler.getStats();
+  // Patterns
   if (recentPatterns.length > 0) {
-    console.log(`\n  🚨 DETECTED PATTERNS (${recentPatterns.length} total):`);
     const pb = intelStats.patternBreakdown;
-    if (Object.keys(pb).length > 0) {
-      for (const [type, count] of Object.entries(pb)) {
-        const emoji = type === "flash_pattern" ? "🔴" : type === "velocity_anomaly" ? "🟠" : type === "whale_activity" ? "🐋" : "🟡";
-        console.log(`     ${emoji} ${type}: ${count} occurrence(s)`);
-      }
-    }
-    console.log(`\n     Last 5 patterns:`);
-    for (const p of recentPatterns.slice(0, 5)) {
+    const patternSummary = Object.entries(pb).map(([type, count]) => `${type}(${count})`).join(", ");
+    console.log(`\n  Patterns detected: ${recentPatterns.length} — ${patternSummary}`);
+    for (const p of recentPatterns.slice(0, 3)) {
       const shortWallet = `${p.wallet.slice(0, 6)}...${p.wallet.slice(-4)}`;
       const emoji = p.severity === "critical" ? "🔴" : p.severity === "high" ? "🟠" : "🟡";
-      console.log(`     ${emoji} [${p.severity.toUpperCase()}] ${shortWallet} — ${p.type}: ${p.description}`);
+      console.log(`     ${emoji} ${shortWallet} — ${p.type}: ${p.description}`);
     }
-  } else {
-    console.log("\n  ℹ️  No patterns detected (events may still be processing)");
   }
 
-  // ── Anomaly Detection Stats ──
-  const anomalyStats = pipeline.anomalyDetector.getStats();
-  const anomalyLog = pipeline.intelligenceLog.filter((l) => l.type === "anomaly");
-  console.log(`\n  📊 ANOMALY DETECTION (Z-Score Statistical Analysis):`);
+  // Anomalies
   if (Object.keys(anomalyStats).length > 0) {
     for (const [token, s] of Object.entries(anomalyStats)) {
-      console.log(`     Token: ${token}`);
-      console.log(`       Mean transfer:    $${Number(s.mean).toLocaleString()}`);
-      console.log(`       Std deviation:    $${Number(s.std_dev).toLocaleString()}`);
-      console.log(`       Sample size:      ${s.sample_size} transfers recorded`);
+      console.log(`\n  Anomaly stats (${token}): mean=$${Number(s.mean).toLocaleString()}, σ=$${Number(s.std_dev).toLocaleString()}, n=${s.sample_size}`);
     }
-  }
-  if (anomalyLog.length > 0) {
-    console.log(`\n     🔬 ${anomalyLog.length} anomalies flagged:`);
-    for (const a of anomalyLog.slice(-5)) {
-      console.log(`        z=${a.z_score?.toFixed(2) || "?"} | ${a.confidence_level || "?"} confidence | ${a.description || a.event || "unknown"}`);
+    if (anomalyLog.length > 0) {
+      console.log(`  🔬 ${anomalyLog.length} statistical anomalies flagged:`);
+      for (const a of anomalyLog.slice(-3)) {
+        console.log(`     z=${a.z_score?.toFixed(2)} | ${a.confidence_level} confidence | ${a.description || a.event}`);
+      }
     }
-  } else {
-    console.log(`     No anomalies flagged yet.`);
   }
 
-  // ── Risk Distribution ──
+  // Risk Distribution
   if (intelStats.riskDistribution) {
     const rd = intelStats.riskDistribution;
-    console.log(`\n  🛡️  RISK DISTRIBUTION:`);
-    console.log(`     🟢 Low risk (0-25):       ${rd.low || 0} wallets`);
-    console.log(`     🟡 Elevated (25-50):      ${rd.elevated || 0} wallets`);
-    console.log(`     🟠 Suspicious (50-75):    ${rd.suspicious || 0} wallets`);
-    console.log(`     🔴 High risk (75-100):    ${rd.high_risk || 0} wallets`);
+    console.log(`\n  Risk distribution: 🟢 ${rd.low || 0} low  🟡 ${rd.elevated || 0} elevated  🟠 ${rd.suspicious || 0} suspicious  🔴 ${rd.high_risk || 0} high`);
   }
 
-  // ── Full Pipeline Module Stats ──
-  const pipeStats = pipeline.getFullPipelineStats();
-  console.log("\n╔══════════════════════════════════════════════════════════╗");
-  console.log("║   ⚙️  PIPELINE MODULE STATUS — All 7 Modules Active      ║");
-  console.log("╚══════════════════════════════════════════════════════════╝");
-  console.log(`\n  📥 Events In:            ${pipeStats.pipeline.eventsProcessed}`);
-  console.log(`  📋 Rule Matches:         ${pipeStats.pipeline.ruleMatches}`);
-  console.log(`  🔇 Noise Filtered:       ${pipeStats.pipeline.noiseFiltered}`);
-  console.log(`  📦 Aggregated Alerts:    ${pipeStats.pipeline.aggregatedAlerts}`);
-  console.log(`  🔬 Anomalies Detected:   ${pipeStats.pipeline.anomaliesDetected}`);
-  console.log(`  ✅ Finality Upgrades:    ${pipeStats.pipeline.finalityUpgrades}`);
-  console.log(`  🧠 Intelligence Events:  ${pipeStats.pipeline.intelligenceEvents}`);
+  // ── 3E. Pipeline Modules ───────────────────────────────────────────────
+  console.log(`\n  ━━━ ⚙️ Pipeline (7 Modules) ━━━`);
+  console.log(`  Events: ${pipeStats.pipeline.eventsProcessed} → Rules: ${pipeStats.pipeline.ruleMatches} → Noise: ${pipeStats.pipeline.noiseFiltered} → Anomalies: ${pipeStats.pipeline.anomaliesDetected} → Intel: ${pipeStats.pipeline.intelligenceEvents}`);
+  console.log(`  Rules loaded: ${pipeStats.modules.ruleLoader.totalRules}`);
 
-  // Show active rules
-  console.log(`\n  📋 ACTIVE RULES (${pipeStats.modules.ruleLoader.totalRules}):`);
-  for (const r of pipeStats.modules.ruleLoader.rules) {
-    const sevEmoji = r.severity === "critical" ? "🔴" : r.severity === "high" ? "🟠" : r.severity === "medium" ? "🟡" : "🔵";
-    console.log(`     ${sevEmoji} [${r.severity.toUpperCase().padEnd(8)}] ${r.name}`);
-  }
-
-  // Noise filter stats
-  if (pipeStats.modules.noiseFilter) {
-    const nf = pipeStats.modules.noiseFilter;
-    console.log(`\n  🔇 Noise Filter: ${nf.passed || 0} passed, ${nf.blocked || 0} blocked, ${nf.deduplicated || 0} deduped`);
-  }
-
-  // Aggregator stats
-  if (pipeStats.modules.aggregator) {
-    const ag = pipeStats.modules.aggregator;
-    console.log(`  📦 Aggregator: ${ag.activeWindows || 0} active windows, ${ag.alertsFired || 0} aggregated alerts`);
-  }
-
-  // Finality tracker stats
-  if (pipeStats.modules.finalityTracker) {
-    const ft = pipeStats.modules.finalityTracker;
-    console.log(`  ✅ Finality: ${ft.tracking || ft.tracked || 0} events tracked, ${ft.finalized || 0} finalized, ${ft.reverted || 0} reverted`)
-  }
-
-  // Show DB stats
+  // DB stats
   if (db && db._isConnected) {
     try {
       const dbEvents = db.query("SELECT COUNT(*) as count FROM events");
       const dbAlerts = db.query("SELECT COUNT(*) as count FROM alerts");
       const dbStats = db.getStats();
-      console.log(`\n  🗄️  SQLite Stats:`);
-      console.log(`     Events stored:         ${dbEvents.rows[0]?.count || 0}`);
-      console.log(`     Alerts stored:         ${dbAlerts.rows[0]?.count || 0}`);
-      console.log(`     DB size:               ${((dbStats?.size || 0) / 1024).toFixed(1)} KB`);
-      console.log(`     DB path:               ${dbStats?.path || 'N/A'}`);
-    } catch (err) {
-      console.log(`\n  ⚠️  SQLite stats unavailable: ${err.message}`);
-    }
+      console.log(`  SQLite: ${dbEvents.rows[0]?.count || 0} events, ${dbAlerts.rows[0]?.count || 0} alerts (${((dbStats?.size || 0) / 1024).toFixed(0)} KB)`);
+    } catch (err) { /* silent */ }
   }
 
+  // ── 3F. Event Log ──────────────────────────────────────────────────────
+  console.log(`\n  ━━━ 📋 Event Log (${eventLog.length} total) ━━━`);
+  eventLog.forEach((e, i) => {
+    const amt = e.amount || e.amountIn || "";
+    const amtStr = amt ? ` — $${amt}` : "";
+    console.log(`     ${String(i + 1).padStart(2)}. ${e.type || "unknown"}${amtStr}`);
+  });
+
+  // ── Final ──────────────────────────────────────────────────────────────
+  console.log("\n  ═══════════════════════════════════════════════════════");
+  console.log("  ✅ FULL PIPELINE VERIFIED:");
+  console.log("     Contracts → Listener → AI Formatter → Telegram (filtered by user prefs)");
+  console.log("     Contracts → Listener → Pipeline → SQLite + Anomaly + Wallet Profiler");
+  console.log("     Telegram Bot → Inline Buttons → User Chooses → Filtered Dispatch");
+  console.log("  ═══════════════════════════════════════════════════════");
   console.log(`\n  🌐 Control Panel:  http://localhost:3001`);
   console.log(`  📊 Analytics:      http://localhost:3001/dashboard`);
   console.log(`  🧠 Intelligence:   http://localhost:3001/intelligence`);

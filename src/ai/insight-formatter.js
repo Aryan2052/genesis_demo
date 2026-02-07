@@ -65,6 +65,8 @@ class InsightFormatter {
         return this._formatEmergency(event);
       case "erc20_transfer":
         return this._formatERC20Transfer(event);
+      case "user_threshold_triggered":
+        return this._formatUserThreshold(event);
       case "vesting_schedule_created":
         return this._formatVestingSchedule(event);
       case "vesting_claim":
@@ -486,6 +488,35 @@ class InsightFormatter {
     };
   }
 
+  _formatUserThreshold(event) {
+    const alertTypeNames = { 0: "Large Transfer", 1: "Whale Movement", 2: "Rapid Flow", 3: "Custom" };
+    const isWhale = event.severity === "critical";
+    const subType = event.subType || "movement";
+
+    return {
+      title: isWhale
+        ? `🐋 WHALE THRESHOLD BREACHED — $${event.amount}`
+        : `🔔 Alert Threshold Triggered — $${event.amount}`,
+      summary: `A ${subType} of $${event.amount} exceeded the on-chain threshold of $${event.thresholdAmount}. `
+        + (event.thresholdSource === "global"
+          ? `This is a protocol-wide rule: "${event.thresholdDescription}".`
+          : `This is a user-defined rule set by ${this._shortAddr(event.thresholdOwner)}: "${event.thresholdDescription}".`),
+      details: [
+        `\u2022 Movement: $${event.amount} (${subType})`,
+        `\u2022 Threshold: $${event.thresholdAmount}`,
+        `\u2022 Rule: ${event.thresholdDescription}`,
+        `\u2022 Source: ${event.thresholdSource === "global" ? "Protocol-wide" : "User-defined"}`,
+        `\u2022 Wallet: ${this._shortAddr(event.user)}`,
+        `\u2022 Block: #${event.blockNumber}`,
+      ].join("\n"),
+      severity: event.severity || "high",
+      recommendation: isWhale
+        ? "Whale activity detected. Track this wallet for follow-up movements and check if other whales are moving in the same direction."
+        : "User-defined threshold breached. Review the transaction and check if the wallet shows unusual patterns.",
+      aiPowered: false,
+    };
+  }
+
   _formatGeneric(event) {
     return {
       title: `📋 Blockchain Event: ${event.type}`,
@@ -527,7 +558,7 @@ class InsightFormatter {
   }
 
   /**
-   * Format insight for Telegram message (plain text with emojis)
+   * Format insight for Telegram message (clean HTML with emojis)
    */
   toTelegram(insight) {
     const severityIcon = {
@@ -537,19 +568,29 @@ class InsightFormatter {
       critical: "🔴",
     };
 
-    return [
-      insight.title,
-      "",
+    const icon = severityIcon[insight.severity] || "⚪";
+    const lines = [
+      `<b>${insight.title}</b>`,
+      ``,
       insight.summary,
-      "",
-      insight.details,
-      "",
-      `${severityIcon[insight.severity] || "⚪"} Severity: ${insight.severity.toUpperCase()}`,
-      "",
+    ];
+
+    if (insight.details) {
+      lines.push(``, insight.details);
+    }
+
+    lines.push(
+      ``,
+      `${icon} <b>Severity:</b> ${(insight.severity || "medium").toUpperCase()}`,
+      ``,
       `💡 ${insight.recommendation}`,
-      "",
-      insight.aiPowered ? "🧠 Analyzed by Genesis AI (LangChain + Gemini)" : "📊 Local analysis",
-    ].join("\n");
+      ``,
+      insight.aiPowered
+        ? `🧠 <i>Genesis AI (LangChain + Gemini)</i>`
+        : `📊 <i>Genesis Local Analysis</i>`,
+    );
+
+    return lines.join("\n");
   }
 
   /**

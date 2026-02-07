@@ -656,7 +656,8 @@ class TelegramBot extends EventEmitter {
       lines.push(``, `━━━━ <b>🏆 TOP RISK</b> ━━━━`);
       topRisk.forEach((w, i) => {
         const medal = ["🥇", "🥈", "🥉"][i];
-        lines.push(`  ${medal} ${w.wallet.slice(0, 8)}…${w.wallet.slice(-4)} — ${w.riskScore}/100`);
+        const addr = w.address || w.wallet || "unknown";
+        lines.push(`  ${medal} ${addr.slice(0, 8)}…${addr.slice(-4)} — ${w.riskScore}/100`);
       });
     }
 

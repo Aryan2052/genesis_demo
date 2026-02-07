@@ -95,12 +95,21 @@ Provide your analysis as JSON:`,
     }
 
     // Auto-disable after too many consecutive failures (rate limits)
+    // But auto-recover after 30 seconds cooldown
     if (this._consecutiveErrors >= 3) {
-      if (!this._rateLimitLogged) {
-        console.log("  ⚠️  [LangChain] AI temporarily disabled (rate limit). Using local formatter.");
-        this._rateLimitLogged = true;
+      const cooldownMs = 30_000; // 30 second cooldown
+      const elapsed = Date.now() - (this._lastErrorTime || 0);
+      if (elapsed < cooldownMs) {
+        if (!this._rateLimitLogged) {
+          console.log(`  ⚠️  [LangChain] Gemini rate limit hit — cooling down ${Math.ceil(cooldownMs / 1000)}s. Using local formatter.`);
+          this._rateLimitLogged = true;
+        }
+        return null;
       }
-      return null;
+      // Cooldown expired — retry
+      this._consecutiveErrors = 0;
+      this._rateLimitLogged = false;
+      console.log(`  🧠 [LangChain] Cooldown expired — retrying Gemini AI...`);
     }
 
     try {
@@ -126,6 +135,7 @@ Provide your analysis as JSON:`,
     } catch (err) {
       this.errorCount++;
       this._consecutiveErrors = (this._consecutiveErrors || 0) + 1;
+      this._lastErrorTime = Date.now();
       if (this._consecutiveErrors <= 2) {
         const shortMsg = err.message.includes("429") ? "Gemini rate limit hit" : err.message.slice(0, 80);
         console.error(`  ⚠️  [LangChain] ${shortMsg} — falling back to local formatter`);
