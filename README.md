@@ -366,7 +366,7 @@ npm test
 
 ## 🎥 Demo Video
 
-[Watch Live Demo](https://your-video-link.com) — Shows:
+[Watch Live Demo]([https://your-video-link.com](https://goose-production-c0db.up.railway.app/)) — Shows:
 1. Rule creation
 2. Whale transfer detection
 3. Telegram alert delivery
